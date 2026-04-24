@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+ENV/
+env/
+.env
+.env.local
+
+# Databases
+*.db
+*.sqlite3
+
+# Logs
+*.log
+user_actions.log
+
+# Project secrets
+*.json
+!sample_mapping.json
+!package.json
+!package-lock.json
+!tsconfig.json
+private_key.pem
+public_key.pem
+
+# Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build
+.DS_Store
+*.pem
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+tmp/
+*.png
+*.jpg
+*.jpeg
+*.docx
+
+# Tools & Debug scripts (usually not needed in git)
+check_chb.py
+check_cv.py
+check_db_objects.py
+check_db_today.py
+check_k2.py
+check_objects.py
+check_schema.py
+check_schema_tmp.py
+check_today_reports.py
+clear_reports.py
+debug_db.py
+debug_load.py
+delete_report_by_id.py
+gen_vapid.py
+gen_vapid_v2.py
+gen_vapid_final.py
+list_objects.py
+sql.py
+db.py

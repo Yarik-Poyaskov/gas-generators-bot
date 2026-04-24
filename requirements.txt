@@ -1,0 +1,20 @@
+aiogram==3.4.1
+pydantic==2.5.3
+pydantic-settings==2.2.1
+aiosqlite==0.19.0
+python-dotenv==1.0.1
+gspread>=5.7.0
+google-auth>=2.16.0
+html2image==2.0.7
+requests>=2.31.0
+websocket-client>=1.0
+playwright>=1.42.0
+apscheduler>=3.10.0
+
+# Web API & Dashboard
+fastapi==0.110.0
+uvicorn==0.27.1
+pyjwt==2.8.0
+python-multipart==0.0.9
+websockets==12.0
+openpyxl==3.1.5

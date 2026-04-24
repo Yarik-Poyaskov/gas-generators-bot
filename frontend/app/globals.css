@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --epicentr-blue: #004899;
+  --epicentr-yellow: #f6c400;
+}
+
+body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+@layer components {
+  .btn-epicentr {
+    @apply bg-[#004899] text-white font-bold py-3 px-6 rounded-2xl shadow-lg shadow-blue-500/20 hover:bg-[#003675] active:scale-95 transition-all flex items-center justify-center gap-2;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

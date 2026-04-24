@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/lib/auth-service';
 import { Shield, Smartphone, Key, AlertCircle, Loader2, ArrowRight, Building2, Lock } from 'lucide-react';
@@ -13,6 +13,14 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    // Redirect if already logged in
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (token) {
+      router.push('/');
+    }
+  }, [router]);
 
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -38,9 +38,7 @@ async def send_web_push(subscription_info: dict, message: str, title: str = "GPU
             subscription_info=subscription_info,
             data=json.dumps({
                 "title": title,
-                "body": message,
-                "icon": "/icon.png", # Path to icon on frontend
-                "badge": "/badge.png"
+                "body": message
             }),
             vapid_private_key=config.vapid_private_key,
             vapid_claims={"sub": f"mailto:{config.vapid_claim_email}"}

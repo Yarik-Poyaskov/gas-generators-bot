@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User, Bell, BellOff, Search, Command, ChevronDown, Sun, Moon, Monitor, Loader2 } from 'lucide-react';
+import { User, Bell, BellOff, Search, Command, ChevronDown, Sun, Moon, Monitor, Loader2, Menu } from 'lucide-react';
 import { authService } from '@/lib/auth-service';
 import { useTheme } from 'next-themes';
-import { registerServiceWorker, subscribeToNotifications, checkSubscriptionStatus } from '@/lib/notifications';
+import { registerServiceWorker, subscribeToNotifications, checkSubscriptionStatus, unsubscribeFromNotifications } from '@/lib/notifications';
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const [userName, setUserName] = useState<string | null>('');
   const [userRole, setUserRole] = useState<string | null>('');
   const { theme, setTheme } = useTheme();
@@ -52,22 +56,25 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 h-20 w-full bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between transition-colors">
-      <div className="flex-1 max-w-xl">
-        <div className="relative group">
+    <header className="sticky top-0 z-30 h-20 w-full bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 px-4 lg:px-8 flex items-center justify-between transition-colors">
+      <div className="flex items-center gap-4 flex-1 max-w-xl">
+        {/* Mobile Menu Trigger */}
+        <button 
+          onClick={onMenuClick}
+          className="p-2.5 bg-slate-100 dark:bg-slate-900 rounded-xl text-slate-600 dark:text-slate-400 lg:hidden hover:bg-slate-200 transition-colors"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
+
+        <div className="relative group flex-1 hidden sm:block">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="h-4.5 w-4.5 text-slate-400 group-focus-within:text-[#004899] transition-colors" />
           </div>
           <input
             type="text"
-            placeholder="Пошук звітів, об'єктів або команд..."
+            placeholder="Пошук звітів..."
             className="block w-full pl-11 pr-12 py-3 bg-slate-100 dark:bg-slate-900 border-2 border-transparent focus:border-[#004899]/20 focus:bg-white dark:focus:bg-slate-950 rounded-2xl transition-all text-sm font-medium text-slate-900 dark:text-white outline-none"
           />
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] text-slate-400 font-bold">
-              <Command className="w-3 h-3" /> K
-            </kbd>
-          </div>
         </div>
       </div>
 

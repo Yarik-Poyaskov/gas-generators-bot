@@ -45,8 +45,8 @@ export default function DashboardLayout({
   return (
     <div className={`min-h-screen bg-[#f1f5f9] dark:bg-slate-950 transition-colors duration-300 ${isCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
       <Sidebar isCollapsed={isCollapsed} onToggle={toggleSidebar} />
-      <div className={`${isCollapsed ? 'ml-24' : 'ml-72'} transition-all duration-300 ease-in-out`}>
-        <Header />
+      <div className={`${isCollapsed ? 'ml-0 lg:ml-24' : 'ml-0 lg:ml-72'} transition-all duration-300 ease-in-out`}>
+        <Header onMenuClick={toggleSidebar} />
         <motion.main 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

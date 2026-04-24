@@ -45,6 +45,14 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
 
   const Icon = statusColor === 'green' ? CheckCircle2 : statusColor === 'red' ? XCircle : statusColor === 'orange' ? AlertTriangle : Activity;
 
+  // Semantic Glow Colors
+  const glowColors = {
+    green: { rgba: '16, 185, 129', hex: '#10b981' },
+    red: { rgba: '244, 63, 94', hex: '#f43f5e' },
+    orange: { rgba: '245, 158, 11', hex: '#f59e0b' },
+    blue: { rgba: '0, 72, 153', hex: '#004899' }
+  }[statusColor];
+
   // Logic to separate Mode and Detailed Status
   const mainMode = (data.work_mode === 'Мережа' || data.work_mode === 'Острів') ? data.work_mode : '—';
   const detailStatus = data.gpu_status ? data.gpu_status.split(',')[0] : 'Очікування';
@@ -111,9 +119,44 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
   return (
     <motion.div
       initial={isNew ? { scale: 0.9, opacity: 0 } : { opacity: 0, y: 10 }}
-      animate={{ scale: 1, opacity: 1, y: 0 }}
-      className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-300 dark:border-slate-800 shadow-md hover:shadow-2xl transition-all relative overflow-hidden group"
+      animate={{ 
+        scale: isNew ? [1, 1.03, 1] : 1, 
+        opacity: 1, 
+        y: 0,
+        borderWidth: isNew ? '3px' : '1px',
+        borderColor: isNew ? glowColors.hex : undefined,
+        boxShadow: isNew 
+          ? [
+              `0 0 0 0px rgba(${glowColors.rgba}, 0)`, 
+              `0 0 40px 8px rgba(${glowColors.rgba}, 0.6)`, 
+              `0 0 0 0px rgba(${glowColors.rgba}, 0)`
+            ] 
+          : '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+      }}
+      transition={{
+        scale: isNew ? { repeat: Infinity, duration: 1.2 } : { duration: 0.3 },
+        boxShadow: isNew ? { repeat: Infinity, duration: 1.2 } : { duration: 0.3 },
+        borderWidth: { duration: 0.2 }
+      }}
+      className={`bg-white dark:bg-slate-900 rounded-[2rem] p-6 border transition-all relative overflow-hidden group ${
+        isNew 
+          ? 'z-20 scale-105' 
+          : 'border-slate-300 dark:border-slate-800 shadow-md hover:shadow-2xl'
+      }`}
+      style={{ borderColor: isNew ? glowColors.hex : undefined }}
     >
+      {isNew && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="absolute top-0 right-0 p-2"
+        >
+          <span className="flex h-2 w-2">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75`} style={{ backgroundColor: glowColors.hex }}></span>
+            <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: glowColors.hex }}></span>
+          </span>
+        </motion.div>
+      )}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-2xl ${theme.accent} relative`}>
@@ -205,11 +248,23 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
       <div className="mt-4">
         <button 
           onClick={() => setShowSchedule(!showSchedule)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#004899] transition-colors"
+          className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all border ${
+            data.is_not_working 
+              ? 'bg-rose-50/50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20 text-rose-600' 
+              : data.current_schedule && data.current_schedule.length > 0
+                ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-900/20 text-emerald-600'
+                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 text-slate-400'
+          }`}
         >
           <Calendar className="w-3.5 h-3.5" />
-          Графік роботи
-          {showSchedule ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          <span className="text-[10px] font-black uppercase tracking-widest">
+            {data.is_not_working 
+              ? 'План: НЕ ПРАЦЮЄ' 
+              : data.current_schedule && data.current_schedule.length > 0
+                ? 'Графік роботи'
+                : 'Графік не подано'}
+          </span>
+          {showSchedule ? <ChevronUp className="w-3 h-3 ml-1 opacity-50" /> : <ChevronDown className="w-3 h-3 ml-1 opacity-50" />}
         </button>
         
         <AnimatePresence>

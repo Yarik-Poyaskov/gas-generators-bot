@@ -518,15 +518,19 @@ async def process_revoke_schedule(callback: CallbackQuery, state: FSMContext, bo
     # Update the main message in TRADER group
     try:
         current_text = callback.message.text or ""
-        # Requirement: "написать текст Что данный график відкликано и время когда его відкликали, пропадала кнопка Відкликати графік"
+        now_dt = datetime.now().strftime("%H:%M:%S")
         
-        # We replace the success message with revocation info
-        if "✅ Збережено в базу!" in current_text:
-            new_text = current_text.replace("✅ Збережено в базу!", f"⚠️ <b>ГРАФІК ВІДКЛИКАНО</b> ({now_dt})")
-            new_text = new_text.replace("🚀 <b>Надіслано до всіх груп</b>", "")
-        else:
-            new_text = current_text + f"\n\n⚠️ <b>ГРАФІК ВІДКЛИКАНО</b> ({now_dt})"
-            
+        # We form new text by removing old status lines and adding revocation info
+        lines = current_text.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            if "Збережено в базу" in line or "Надіслано до всіх груп" in line:
+                continue
+            cleaned_lines.append(line)
+        
+        new_text = "\n".join(cleaned_lines).strip()
+        new_text += f"\n\n⚠️ <b>ГРАФІК ВІДКЛИКАНО</b> ({now_dt})"
+        
         await callback.message.edit_text(
             text=new_text,
             reply_markup=None, # Remove the revoke button

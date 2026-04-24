@@ -43,3 +43,21 @@ export async function checkSubscriptionStatus() {
   }
   return false;
 }
+
+export async function unsubscribeFromNotifications() {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await subscription.unsubscribe();
+      // Optionally notify server to remove it from DB too
+      // await api.post('/notifications/unsubscribe', { endpoint: subscription.endpoint });
+      console.log('User is unsubscribed from Push Notifications');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Failed to unsubscribe user:', error);
+    return false;
+  }
+}

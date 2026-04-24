@@ -19,6 +19,7 @@ from app.middlewares.logging import ActionLoggingMiddleware
 from send_summary_report import run_summary_report
 from app.services.scheduler_tasks import send_admin_reminders, check_trader_confirmations
 from app.services.shifts import auto_close_shifts_task, send_shift_reminders_task
+from app.services.report_reminders import check_and_send_report_reminders
 
 async def main():
     """The main function that starts the bot."""
@@ -86,6 +87,7 @@ async def main():
     reminder_interval = int(await get_setting("shift_reminder_interval", "5"))
     scheduler.add_job(auto_close_shifts_task, 'interval', minutes=15, args=[bot], id="auto_close_shifts", misfire_grace_time=300)
     scheduler.add_job(send_shift_reminders_task, 'interval', minutes=reminder_interval, args=[bot], id="send_shift_reminders", misfire_grace_time=300)
+    scheduler.add_job(check_and_send_report_reminders, 'interval', minutes=5, args=[bot], id="report_event_reminders", misfire_grace_time=300)
     
     scheduler.start()
 

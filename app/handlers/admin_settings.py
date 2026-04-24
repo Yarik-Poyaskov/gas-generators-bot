@@ -23,10 +23,11 @@ async def cmd_admin_settings(message: Message):
     hide_not_working = await get_setting("hide_not_working_in_short", "0") == "1"
     auto_close = await get_setting("auto_close_shifts", "0") == "1"
     reminder_interval = int(await get_setting("shift_reminder_interval", "5"))
+    report_margin = int(await get_setting("report_reminder_margin", "20"))
     
     await message.answer(
         "⚙️ **Налаштування бота**\n\nТут ви можете керувати сповіщеннями та розкладом автоматичних завдань:",
-        reply_markup=get_settings_keyboard(pm, groups, hide_not_working, auto_close, reminder_interval)
+        reply_markup=get_settings_keyboard(pm, groups, hide_not_working, auto_close, reminder_interval, report_margin)
     )
 
 @router.callback_query(F.data == "back_to_settings")
@@ -37,10 +38,11 @@ async def back_to_settings(callback: CallbackQuery):
     hide_not_working = await get_setting("hide_not_working_in_short", "0") == "1"
     auto_close = await get_setting("auto_close_shifts", "0") == "1"
     reminder_interval = int(await get_setting("shift_reminder_interval", "5"))
+    report_margin = int(await get_setting("report_reminder_margin", "20"))
     
     await callback.message.edit_text(
         "⚙️ **Налаштування бота**\n\nТут ви можете керувати сповіщеннями та розкладом автоматичних завдань:",
-        reply_markup=get_settings_keyboard(pm, groups, hide_not_working, auto_close, reminder_interval)
+        reply_markup=get_settings_keyboard(pm, groups, hide_not_working, auto_close, reminder_interval, report_margin)
     )
     await callback.answer()
 
@@ -56,9 +58,26 @@ async def process_toggle_setting(callback: CallbackQuery):
     hide_not_working = await get_setting("hide_not_working_in_short", "0") == "1"
     auto_close = await get_setting("auto_close_shifts", "0") == "1"
     reminder_interval = int(await get_setting("shift_reminder_interval", "5"))
+    report_margin = int(await get_setting("report_reminder_margin", "20"))
     
-    await callback.message.edit_reply_markup(reply_markup=get_settings_keyboard(pm, groups, hide_not_working, auto_close, reminder_interval))
+    await callback.message.edit_reply_markup(reply_markup=get_settings_keyboard(pm, groups, hide_not_working, auto_close, reminder_interval, report_margin))
     await callback.answer("Налаштування оновлено")
+
+@router.callback_query(F.data == "set_report_margin_list")
+async def set_report_margin_list(callback: CallbackQuery):
+    from app.keyboards.inline import get_report_margin_keyboard
+    await callback.message.edit_text(
+        "⏰ **Виберіть запас часу для звіту**\n\nЧерез скільки хвилин після часу в графіку бот надішле нагадування, якщо звіту немає:",
+        reply_markup=get_report_margin_keyboard()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("set_rep_margin:"))
+async def set_report_margin(callback: CallbackQuery):
+    margin = int(callback.data.split(":")[1])
+    await update_setting("report_reminder_margin", str(margin))
+    await callback.answer(f"✅ Запас змінено на {margin} хв", show_alert=True)
+    await back_to_settings(callback)
 
 @router.callback_query(F.data == "set_reminder_interval_list")
 async def set_reminder_interval_list(callback: CallbackQuery):

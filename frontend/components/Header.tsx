@@ -35,6 +35,13 @@ export default function Header() {
     setSubscribing(false);
   };
 
+  const handleUnsubscribe = async () => {
+    setSubscribing(true);
+    const success = await unsubscribeFromNotifications();
+    if (success) setIsSubscribed(false);
+    setSubscribing(false);
+  };
+
   // Avoid hydration mismatch by not rendering anything theme-specific until mounted
   if (!mounted) {
     return (
@@ -92,10 +99,10 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <button 
-            onClick={!isSubscribed ? handleSubscribe : undefined}
+            onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
             disabled={subscribing}
             className={`p-2.5 rounded-2xl transition-all relative group ${isSubscribed ? 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20' : 'text-slate-500 hover:text-[#004899] hover:bg-blue-50 dark:hover:bg-slate-900'}`}
-            title={isSubscribed ? 'Сповіщення увімкнено' : 'Увімкнути сповіщення'}
+            title={isSubscribed ? 'Вимкнути сповіщення' : 'Увімкнути сповіщення'}
           >
             {subscribing ? (
               <Loader2 className="h-5.5 w-5.5 animate-spin" />

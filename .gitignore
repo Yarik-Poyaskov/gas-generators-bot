@@ -18,6 +18,7 @@ env/
 user_actions.log
 
 # Project secrets
+GEMINI.md
 *.json
 !sample_mapping.json
 !package.json
@@ -47,6 +48,8 @@ tmp/
 *.docx
 
 # Tools & Debug scripts (usually not needed in git)
+run_bot.bat
+run_bot.ps1
 check_chb.py
 check_cv.py
 check_db_objects.py

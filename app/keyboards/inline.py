@@ -592,7 +592,7 @@ def get_short_stop_power_kb() -> InlineKeyboardMarkup:
         ]
     )
 
-def get_settings_keyboard(trader_pm: bool, trader_groups: bool, hide_not_working: bool = False, auto_close_shifts: bool = False, reminder_interval: int = 5) -> InlineKeyboardMarkup:
+def get_settings_keyboard(trader_pm: bool, trader_groups: bool, hide_not_working: bool = False, auto_close_shifts: bool = False, reminder_interval: int = 5, report_margin: int = 20) -> InlineKeyboardMarkup:
     """Generates an inline keyboard for toggling notification settings."""
     pm_status = "✅" if trader_pm else "❌"
     groups_status = "✅" if trader_groups else "❌"
@@ -627,8 +627,14 @@ def get_settings_keyboard(trader_pm: bool, trader_groups: bool, hide_not_working
             ],
             [
                 InlineKeyboardButton(
-                    text=f"⏱ Інтервал нагадувань: {reminder_interval}хв",
+                    text=f"⏱ Перевірка смен: {reminder_interval}хв",
                     callback_data="set_reminder_interval_list"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"⏰ Запас звіту: {report_margin}хв",
+                    callback_data="set_report_margin_list"
                 )
             ],
             [
@@ -637,6 +643,16 @@ def get_settings_keyboard(trader_pm: bool, trader_groups: bool, hide_not_working
             [InlineKeyboardButton(text="Закрити", callback_data="close_admin_inline")]
         ]
     )
+
+def get_report_margin_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard to select report reminder margin."""
+    margins = [5, 10, 15, 20, 30, 45, 60]
+    keyboard = []
+    for m in margins:
+        keyboard.append([InlineKeyboardButton(text=f"{m} хвилин", callback_data=f"set_rep_margin:{m}")])
+    
+    keyboard.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="open_settings")])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_reminder_interval_keyboard() -> InlineKeyboardMarkup:
     """Keyboard to select reminder interval."""

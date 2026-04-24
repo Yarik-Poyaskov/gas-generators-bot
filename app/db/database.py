@@ -607,6 +607,47 @@ async def remove_push_subscription(subscription_json: str):
         await db.execute("DELETE FROM web_push_subscriptions WHERE subscription_json = ?", (subscription_json,))
         await db.commit()
 
+# --- Schedule Event Reminders ---
+
+async def was_reminder_sent(schedule_id: int, event_type: str, event_time: str) -> bool:
+    """Checks if a reminder for a specific schedule event was already sent."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT 1 FROM schedule_event_reminders WHERE schedule_id = ? AND event_type = ? AND event_time = ?",
+            (schedule_id, event_type, event_time)
+        )
+        return await cursor.fetchone() is not None
+
+async def log_sent_reminder(schedule_id: int, event_type: str, event_time: str):
+    """Logs that a reminder was sent."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO schedule_event_reminders (schedule_id, event_type, event_time) VALUES (?, ?, ?)",
+            (schedule_id, event_type, event_time)
+        )
+        await db.commit()
+
+async def check_report_exists(object_name: str, report_type: str, date_str: str) -> bool:
+    """
+    Checks if a report of a certain type (start/stop) exists for an object today.
+    object_name: name of the object to search for in tc_name.
+    report_type: 'start' or 'stop'.
+    date_str: 'YYYY-MM-DD'.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        # We check both the time_type field and the raw status text just in case
+        cursor = await db.execute(
+            """
+            SELECT 1 FROM reports 
+            WHERE tc_name LIKE '%' || ? || '%' 
+            AND time_type = ? 
+            AND date(created_at) = ?
+            LIMIT 1
+            """,
+            (object_name, report_type, date_str)
+        )
+        return await cursor.fetchone() is not None
+
 # --- Shift Management Functions ---
 
 async def start_shift(user_id: int, object_id: int) -> int:

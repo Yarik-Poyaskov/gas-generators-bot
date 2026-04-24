@@ -8,9 +8,12 @@ import { registerServiceWorker, subscribeToNotifications, checkSubscriptionStatu
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  centerContent?: React.ReactNode;
+  searchQuery?: string;
+  setSearchQuery?: (val: string) => void;
 }
 
-export default function Header({ onMenuClick }: HeaderProps) {
+export default function Header({ onMenuClick, centerContent, searchQuery, setSearchQuery }: HeaderProps) {
   const [userName, setUserName] = useState<string | null>('');
   const [userRole, setUserRole] = useState<string | null>('');
   const { theme, setTheme } = useTheme();
@@ -56,31 +59,38 @@ export default function Header({ onMenuClick }: HeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 h-20 w-full bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 px-4 lg:px-8 flex items-center justify-between transition-colors">
-      <div className="flex items-center gap-4 flex-1 max-w-xl">
+    <header className="sticky top-4 z-30 h-18 mx-4 lg:mx-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-[1.5rem] px-4 lg:px-6 flex items-center justify-between transition-all shadow-lg shadow-black/5">
+      <div className="flex items-center gap-6 flex-1">
         {/* Mobile Menu Trigger */}
         <button 
           onClick={onMenuClick}
-          className="p-2.5 bg-slate-100 dark:bg-slate-900 rounded-xl text-slate-600 dark:text-slate-400 lg:hidden hover:bg-slate-200 transition-colors"
+          className="p-2 bg-slate-100 dark:bg-slate-900 rounded-xl text-slate-600 dark:text-slate-400 lg:hidden hover:bg-slate-200 transition-colors"
         >
-          <Menu className="h-6 w-6" />
+          <Menu className="h-5 w-5" />
         </button>
 
-        <div className="relative group flex-1 hidden sm:block">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <Search className="h-4.5 w-4.5 text-slate-400 group-focus-within:text-[#004899] transition-colors" />
+        <div className="relative group w-full max-w-[200px] hidden sm:block">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-slate-400 group-focus-within:text-[#004899] transition-colors" />
           </div>
           <input
             type="text"
-            placeholder="Пошук звітів..."
-            className="block w-full pl-11 pr-12 py-3 bg-slate-100 dark:bg-slate-900 border-2 border-transparent focus:border-[#004899]/20 focus:bg-white dark:focus:bg-slate-950 rounded-2xl transition-all text-sm font-medium text-slate-900 dark:text-white outline-none"
+            placeholder="Пошук..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery?.(e.target.value)}
+            className="block w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-900 border-2 border-transparent focus:border-[#004899]/20 focus:bg-white dark:focus:bg-slate-950 rounded-xl transition-all text-xs font-bold text-slate-900 dark:text-white outline-none"
           />
+        </div>
+
+        {/* Dynamic Content (Stats, Title, etc.) - Aligned to the left next to search */}
+        <div className="flex items-center gap-6">
+          {centerContent}
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-3 ml-4">
         {/* Theme Switcher */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+        <div className="hidden md:flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 scale-90">
           <button 
             onClick={() => setTheme('light')}
             className={`p-2 rounded-lg transition-all ${theme === 'light' ? 'bg-white text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}

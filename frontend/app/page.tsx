@@ -19,6 +19,8 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState<SortOption>('status');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [showSortMenu, setShowSortBy] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'stable' | 'stopped' | 'emergency'>('all');
 
   const fetchObjects = async () => {
     try {
@@ -75,11 +77,30 @@ export default function Dashboard() {
   }, []);
 
   const sortedObjects = useMemo(() => {
-    const sorted = [...objects];
+    // 1. Filter by status dot
+    let filtered = [...objects];
     
+    if (statusFilter === 'stable') {
+      filtered = filtered.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна'));
+    } else if (statusFilter === 'stopped') {
+      filtered = filtered.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює'));
+    } else if (statusFilter === 'emergency') {
+      filtered = filtered.filter(o => (o.gpu_status || '').toLowerCase().includes('аварі') || (o.gpu_status || '').toLowerCase().includes('не готова'));
+    }
+
+    // 2. Filter by search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(o => 
+        o.name.toLowerCase().includes(q) || 
+        (o.short_name || '').toLowerCase().includes(q)
+      );
+    }
+
+    // 3. Sort
     const sortMultiplier = sortOrder === 'asc' ? 1 : -1;
 
-    sorted.sort((a, b) => {
+    filtered.sort((a, b) => {
       let comparison = 0;
       switch (sortBy) {
         case 'alphabetical':
@@ -89,7 +110,7 @@ export default function Dashboard() {
           const getStatusWeight = (status: string | null = '') => {
             if (!status || status.toLowerCase().includes('очікування')) return 10; // Waiting - Last
             const s = status.toLowerCase();
-            if (s.includes('аварії') || s.includes('не готова')) return 3;
+            if (s.includes('аварі') || s.includes('не готова')) return 3;
             if (s.includes('не працює')) return 2;
             if (s.includes('стабільна')) return 0;
             return 4;
@@ -103,8 +124,8 @@ export default function Dashboard() {
       return comparison * sortMultiplier;
     });
 
-    return sorted;
-  }, [objects, sortBy, sortOrder]);
+    return filtered;
+  }, [objects, sortBy, sortOrder, searchQuery, statusFilter]);
 
   const handleViewChange = (type: 'grid' | 'list') => {
     setViewType(type);
@@ -118,117 +139,107 @@ export default function Dashboard() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col gap-8">
-        {/* Page Header Area */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-              Статус ГПУ
-              <span className="px-2.5 py-1 bg-[#004899]/10 text-[#004899] text-xs font-black rounded-lg uppercase">Live</span>
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
-              Останнє оновлення: <span className="text-slate-900 dark:text-slate-200 font-bold">{lastUpdated.toLocaleTimeString()}</span>
-            </p>
+    <DashboardLayout 
+      searchQuery={searchQuery}
+      setSearchQuery={setSearchQuery}
+      headerCenterContent={
+        <div className="flex items-center gap-4 lg:gap-8">
+          {/* Title & Time Group */}
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col">
+              <h1 className="text-sm font-black text-slate-900 dark:text-white leading-none tracking-tight flex items-center gap-2">
+                Статус ГПУ
+                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-[#004899] dark:text-blue-400 text-[8px] font-black rounded uppercase">Live</span>
+              </h1>
+              <p className="text-slate-400 text-[9px] font-bold mt-1">
+                {lastUpdated.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
+              </p>
+            </div>
+            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden lg:block" />
           </div>
-          
-          <div className="flex items-center gap-3">
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <button 
-                  onClick={() => setShowSortBy(!showSortMenu)}
-                  className="flex items-center gap-2 bg-white dark:bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-[#004899]/30 transition-all text-sm font-bold text-slate-700 dark:text-slate-300"
-                >
-                  <SortAsc className="h-4 w-4 text-[#004899]" />
-                  <span className="hidden sm:inline">{sortLabels[sortBy]}</span>
-                  <ChevronDown className={`h-3 w-3 transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
-                </button>
-                
-                <AnimatePresence>
-                  {showSortMenu && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setShowSortBy(false)} />
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 py-2 z-20 overflow-hidden"
-                      >
-                        {(Object.keys(sortLabels) as SortOption[]).map((option) => (
-                          <button
-                            key={option}
-                            onClick={() => { setSortBy(option); setShowSortBy(false); }}
-                            className={`w-full text-left px-5 py-3 text-sm font-bold transition-colors ${sortBy === option ? 'text-[#004899] bg-blue-50 dark:bg-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                          >
-                            {sortLabels[option]}
-                          </button>
-                        ))}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
 
-              {/* Sort Order Toggle */}
-              <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-[#004899]"
-                title={sortOrder === 'asc' ? 'За зростанням' : 'За спаданням'}
+          {/* Interactive Compact Stats - Clickable filters */}
+          <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-inner">
+            {[
+              { id: 'all', label: 'Усього', value: objects.length, color: 'blue', bg: 'bg-blue-500' },
+              { id: 'stable', label: 'Робота', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна')).length, color: 'green', bg: 'bg-emerald-500' },
+              { id: 'stopped', label: 'Стоп', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює')).length, color: 'red', bg: 'bg-rose-500' },
+              { id: 'emergency', label: 'Аварія', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('аварі') || (o.gpu_status || '').toLowerCase().includes('не готова')).length, color: 'orange', bg: 'bg-amber-500' },
+            ].map((stat) => (
+              <button 
+                key={stat.id} 
+                onClick={() => setStatusFilter(stat.id as any)}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all group relative ${statusFilter === stat.id ? 'bg-white dark:bg-slate-700 shadow-md scale-105 ring-1 ring-black/5' : 'hover:bg-white/50 dark:hover:bg-slate-800 opacity-70 hover:opacity-100'}`}
               >
-                {sortOrder === 'asc' ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" /></svg>
+                <div className={`w-2 h-2 rounded-full ${stat.bg} shadow-sm shadow-black/10`} />
+                <span className={`text-xs font-black ${stat.color === 'green' ? 'text-emerald-600' : stat.color === 'red' ? 'text-rose-600' : stat.color === 'orange' ? 'text-amber-600' : 'text-[#004899]'}`}>
+                  {stat.value}
+                </span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block bg-slate-800 text-white text-[9px] px-2 py-1 rounded-lg shadow-2xl whitespace-nowrap z-50 border border-slate-700">
+                  {stat.label} {statusFilter === stat.id ? '(активно)' : ''}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block" />
+
+          {/* Controls - More spaced out icons */}
+          <div className="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+            <div className="relative">
+              <button 
+                onClick={() => setShowSortBy(!showSortMenu)}
+                className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+                title="Сортування"
+              >
+                <SortAsc className="h-4 w-4" />
+              </button>
+              <AnimatePresence>
+                {showSortMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSortBy(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                      className="absolute left-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 py-1.5 z-20 overflow-hidden"
+                    >
+                      {(Object.keys(sortLabels) as SortOption[]).map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => { setSortBy(option); setShowSortBy(false); }}
+                          className={`w-full text-left px-4 py-2 text-[11px] font-bold transition-colors ${sortBy === option ? 'text-[#004899] bg-blue-50 dark:bg-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                        >
+                          {sortLabels[option]}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
                 )}
-              </button>
+              </AnimatePresence>
             </div>
 
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <button 
-                onClick={() => handleViewChange('grid')}
-                className={`p-2 rounded-xl transition-all ${viewType === 'grid' ? 'bg-[#004899] text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}
-              >
-                <LayoutGrid className="h-4.5 w-4.5" />
-              </button>
-              <button 
-                onClick={() => handleViewChange('list')}
-                className={`p-2 rounded-xl transition-all ${viewType === 'list' ? 'bg-[#004899] text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}
-              >
-                <List className="h-4.5 w-4.5" />
-              </button>
-            </div>
-
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+            <button 
+              onClick={() => handleViewChange(viewType === 'grid' ? 'list' : 'grid')}
+              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+              title={viewType === 'grid' ? 'Список' : 'Плитка'}
+            >
+              {viewType === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+            </button>
 
             <button 
               onClick={() => {setLoading(true); fetchObjects();}}
-              className="flex items-center gap-2 bg-white dark:bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-[#004899]/30 transition-all active:scale-95 group"
+              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-[#004899] transition-all group"
+              title="Оновити"
             >
-              <RefreshCw className={`h-4 w-4 text-[#004899] ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Оновити</span>
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
             </button>
           </div>
         </div>
+      }
+    >
+      <div className="flex flex-col gap-6">
 
-        {/* Stats Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Усього ГПУ', value: objects.length, color: 'blue' },
-            { label: 'У роботі', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна')).length, color: 'green' },
-            { label: 'Зупинено', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює')).length, color: 'red' },
-            { label: 'Аварії / Інше', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('аварії') || (o.gpu_status || '').toLowerCase().includes('не готова')).length, color: 'orange' },
-          ].map((stat, i) => (
-            <div key={i} className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
-              <p className={`text-2xl font-black ${stat.color === 'green' ? 'text-emerald-600' : stat.color === 'red' ? 'text-rose-600' : stat.color === 'orange' ? 'text-amber-600' : 'text-[#004899]'}`}>
-                {stat.value}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Content Area */}
         <AnimatePresence mode="wait">
           {loading && objects.length === 0 ? (
             <motion.div 

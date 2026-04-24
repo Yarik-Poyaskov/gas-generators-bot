@@ -10,8 +10,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DashboardLayout({
   children,
+  headerCenterContent,
+  searchQuery,
+  setSearchQuery,
 }: {
   children: React.ReactNode;
+  headerCenterContent?: React.ReactNode;
+  searchQuery?: string;
+  setSearchQuery?: (val: string) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -46,7 +52,12 @@ export default function DashboardLayout({
     <div className={`min-h-screen bg-[#f1f5f9] dark:bg-slate-950 transition-colors duration-300 ${isCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
       <Sidebar isCollapsed={isCollapsed} onToggle={toggleSidebar} />
       <div className={`${isCollapsed ? 'ml-0 lg:ml-24' : 'ml-0 lg:ml-72'} transition-all duration-300 ease-in-out`}>
-        <Header onMenuClick={toggleSidebar} />
+        <Header 
+          onMenuClick={toggleSidebar} 
+          centerContent={headerCenterContent}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
         <motion.main 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

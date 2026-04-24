@@ -53,7 +53,7 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
   const getPlannedTime = () => {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const isRunning = (data.gpu_status || '').toLowerCase().includes('стабільна');
+    const isRunning = (data.gpu_status || '').toLowerCase().includes('стабільна') || (data.gpu_status || '').toLowerCase().includes('аваріями');
     
     // Check if the report is from today
     const reportDate = data.last_report_at ? new Date(data.last_report_at) : null;

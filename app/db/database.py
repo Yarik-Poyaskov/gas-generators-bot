@@ -65,6 +65,8 @@ async def init_db():
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('check_confirmations_1_time', '14:00')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('check_confirmations_2_time', '15:00')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('summary_report_active', '1')")
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('special_summary_report_time', '10:00')")
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('special_summary_report_active', '1')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('remind_schedules_active', '1')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('remind_schedules_2_active', '1')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('check_confirmations_1_active', '1')")

@@ -27,33 +27,6 @@ def get_report_period_str():
     """Повертає рядок періоду для заголовків."""
     return f"{REPORT_START_HOUR:02d}:00 - {REPORT_END_HOUR:02d}:{REPORT_END_MINUTE:02d}"
 
-async def get_active_shifts_dict():
-    """Повертає словник {object_id: 'ПІБ (телефон)'} для активних змін."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        query = """
-            SELECT s.object_id, u.full_name, u.phone_number 
-            FROM shifts s 
-            JOIN users u ON s.user_id = u.user_id 
-            WHERE s.end_time IS NULL
-        """
-        cursor = await db.execute(query)
-        rows = await cursor.fetchall()
-        
-        shifts = {}
-        for r in rows:
-            phone = r['phone_number'] or "—"
-            shifts[r['object_id']] = f"{r['full_name']} ({phone})"
-        return shifts
-
-async def get_objects_mapping():
-    """Повертає мапінг {object_name: object_id}."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT id, name FROM objects")
-        rows = await cursor.fetchall()
-        return {r['name']: r['id'] for r in rows}
-
 async def get_today_full_reports():
     """Извлекает ПОВНЫЕ отчеты, ПОДАННЫЕ сегодня в заданный период по Киеву."""
     now = datetime.now(KYIV_TZ)
@@ -85,8 +58,8 @@ async def get_today_full_reports():
         filtered_reports.sort(key=lambda x: x['tc_name'])
         return filtered_reports
 
-def format_html_table(reports, shifts, obj_map):
-    """Создает HTML для сводной таблицы с информацией о дежурных."""
+def format_html_table(reports):
+    """Создает HTML для сводной таблицы (Оригинальная версия)."""
     rows_html = ""
     period_str = get_report_period_str()
     for r in reports:
@@ -97,21 +70,14 @@ def format_html_table(reports, shifts, obj_map):
         match_name = re.search(r'\((.*?)\)', full_name)
         display_name = match_name.group(1) if match_name else full_name
 
-        # Find shift info
-        obj_id = None
-        for name, oid in obj_map.items():
-            if name in full_name:
-                obj_id = oid
-                break
-        
-        duty_info = shifts.get(obj_id, "—")
-
         s_time = r.get('start_time') or "—"
         if "Плановий - " in s_time:
             s_time = s_time.replace("Плановий - ", "")
         
         load_pct = r.get('load_power_percent') or "0"
         load_kw = r.get('load_power_kw') or "0"
+        total_mwh = r.get('total_mwh') or "0"
+        total_hours = r.get('total_hours') or "0"
         work_mode = r.get('work_mode') or "—"
 
         rows_html += f"""
@@ -121,7 +87,8 @@ def format_html_table(reports, shifts, obj_map):
             <td>{s_time}</td>
             <td>{load_pct}% / {load_kw} кВт</td>
             <td><span class="{status_style}">{gpu_status}</span></td>
-            <td>{duty_info}</td>
+            <td>{total_mwh}</td>
+            <td>{total_hours}</td>
         </tr>
         """
     
@@ -132,7 +99,7 @@ def format_html_table(reports, shifts, obj_map):
         <meta charset="UTF-8">
         <style>
             body {{ font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }}
-            .container {{ background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.1); width: 1100px; margin: auto; border-top: 10px solid #1a73e8; }}
+            .container {{ background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.1); width: 1000px; margin: auto; border-top: 10px solid #1a73e8; }}
             h2 {{ text-align: center; color: #1a73e8; margin-bottom: 5px; text-transform: uppercase; }}
             h3 {{ text-align: center; color: #5f6368; font-weight: normal; margin-bottom: 30px; }}
             table {{ width: 100%; border-collapse: collapse; }}
@@ -147,8 +114,8 @@ def format_html_table(reports, shifts, obj_map):
     </head>
     <body>
         <div class="container">
-            <h2>Зведенний звіт по ГПУ (З черговими)</h2>
-            <h3>Період подачі: {period_str}</h3>
+            <h2>Зведенний звіт по ГПУ (Оригінальний)</h2>
+            <h3>Період подачі: {period_str} (Повні звіти)</h3>
             <table>
                 <thead>
                     <tr>
@@ -157,7 +124,8 @@ def format_html_table(reports, shifts, obj_map):
                         <th>Час запуску</th>
                         <th>Потужність</th>
                         <th>Статус</th>
-                        <th>Черговий (Телефон)</th>
+                        <th>МВт*год</th>
+                        <th>м/год</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -170,34 +138,32 @@ def format_html_table(reports, shifts, obj_map):
     </html>
     """
 
-async def run_summary_report(bot: Bot, target_chat_id: int = None):
-    """Основна функція для запуску зведеного звіту (тепер з черговими)."""
+async def run_special_summary_report(bot: Bot, target_chat_id: int = None):
+    """Основна функція для запуску спеціального (колишнього звичайного) звіту."""
     now_kiev = datetime.now(KYIV_TZ)
     period_str = get_report_period_str()
-    logger.info("🚀 Запуск генерації зведеного звіту (з черговими)...")
+    logger.info("🚀 Запуск генерації спеціального зведеного звіту...")
     
     reports = await get_today_full_reports()
-    shifts = await get_active_shifts_dict()
-    obj_map = await get_objects_mapping()
     
     if not reports:
-        msg = f"ℹ️ Звітів за період {period_str} не знайдено."
+        msg = f"ℹ️ Спеціальний звіт: Звітів за період {period_str} не знайдено."
         if target_chat_id:
             await bot.send_message(chat_id=target_chat_id, text=msg)
         return
 
-    html_content = format_html_table(reports, shifts, obj_map)
+    html_content = format_html_table(reports)
     
     if not os.path.exists('tmp'):
         os.makedirs('tmp')
     
-    output_path = os.path.join('tmp', f"summary_{now_kiev.strftime('%Y%m%d_%H%M%S')}.png")
+    output_path = os.path.join('tmp', f"special_summary_{now_kiev.strftime('%Y%m%d_%H%M%S')}.png")
 
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
-            await page.set_viewport_size({"width": 1200, "height": 1000})
+            await page.set_viewport_size({"width": 1100, "height": 1000})
             await page.set_content(html_content)
             await asyncio.sleep(1)
             element = await page.query_selector(".container")
@@ -212,20 +178,30 @@ async def run_summary_report(bot: Bot, target_chat_id: int = None):
 
     if os.path.exists(output_path):
         photo = FSInputFile(output_path)
-        caption = f"📋 Зведенний звіт (ЧЕРГОВІ)\n📅 {now_kiev.strftime('%d.%m.%Y')}\n⏰ Період: {period_str}"
+        caption = f"📋 Спеціальний звіт (МВт*год)\n📅 {now_kiev.strftime('%d.%m.%Y')}\n⏰ Період: {period_str}"
         
-        chat_id = target_chat_id or config.special_group_id
-
-        if chat_id:
+        # Если указан target_chat_id (запрос админа), отправляем только туда
+        if target_chat_id:
             try:
-                await bot.send_photo(chat_id=chat_id, photo=photo, caption=caption)
-                print(f"[{now_kiev.strftime('%H:%M:%S')}] ✅ Звіт (з черговими) надіслано в чат {chat_id}")
+                await bot.send_photo(chat_id=target_chat_id, photo=photo, caption=caption)
+                print(f"[{now_kiev.strftime('%H:%M:%S')}] ✅ Спеціальний звіт надіслано в чат {target_chat_id}")
             except Exception as e:
-                logger.error(f"Error sending photo to {chat_id}: {e}")
+                logger.error(f"Error sending photo to {target_chat_id}: {e}")
+            return
+
+        # Иначе рассылаем всем админам из конфига
+        for admin_id in config.admin_ids:
+            try:
+                # Re-opening photo for each admin just in case
+                photo_admin = FSInputFile(output_path)
+                await bot.send_photo(chat_id=admin_id, photo=photo_admin, caption=caption)
+                print(f"[{now_kiev.strftime('%H:%M:%S')}] ✅ Спеціальний звіт надіслано адміну {admin_id}")
+            except Exception as e:
+                logger.error(f"Error sending special report to admin {admin_id}: {e}")
 
 if __name__ == "__main__":
     async def test_run():
         bot = Bot(token=config.bot_token.get_secret_value())
-        await run_summary_report(bot)
+        await run_special_summary_report(bot)
         await bot.session.close()
     asyncio.run(test_run())

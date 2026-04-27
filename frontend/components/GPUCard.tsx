@@ -62,11 +62,17 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     
-    // Check if the report is from today
-    const reportDate = data.last_report_at ? new Date(data.last_report_at) : null;
-    const isReportToday = reportDate && reportDate.toDateString() === now.toDateString();
+    // Normalize date parsing: ensure UTC interpretation if no timezone is present
+    const rawReportDate = data.last_report_at;
+    let reportDate: Date | null = null;
+    if (rawReportDate) {
+      const isoDate = rawReportDate.includes('T') ? rawReportDate : rawReportDate.replace(' ', 'T') + 'Z';
+      reportDate = new Date(isoDate);
+    }
     
-    // IMPORTANT: isRunning is only true if status is stable AND report is from today
+    const isReportToday = reportDate && reportDate.getUTCDate() === now.getUTCDate() && reportDate.getUTCMonth() === now.getUTCMonth();
+    
+    // STRICT Running check: must have a today's report AND active status
     const status = (data.gpu_status || '').toLowerCase();
     const isRunning = isReportToday && (status.includes('стабільна') || status.includes('аваріями'));
     
@@ -100,29 +106,35 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
     });
 
     if (isRunning) {
-      // Find current or next finish time
-      const currentInterval = intervals.find((i: any) => currentMinutes >= i.startMin && currentMinutes < i.endMin);
-      if (currentInterval) return { label: 'Час зупинки', value: `План ${currentInterval.end}` };
+      // Find the interval we are currently in or the next one to finish
+      const currentOrNext = intervals.find((i: any) => currentMinutes < i.endMin);
       
-      const nextInterval = intervals.find((i: any) => i.startMin > currentMinutes);
-      if (nextInterval) return { label: 'Час зупинки', value: `План ${nextInterval.end}` };
+      if (currentOrNext) {
+        return { label: 'Час зупинки', value: `План ${currentOrNext.end}` };
+      }
       
       return { label: explicitLabel || 'Час зупинки', value: lastReportTime || '—' };
     } else {
       // NOT RUNNING
-      // 1. Find if we are currently inside an interval but not started yet
+      // 1. Find the next interval that starts in the future
+      const nextToStart = intervals.find((i: any) => i.startMin > currentMinutes);
+      
+      // 2. Find if we are currently inside an interval but not started yet
       const currentInterval = intervals.find((i: any) => currentMinutes >= i.startMin && currentMinutes < i.endMin);
+      
       if (currentInterval) {
         return { label: 'Запуск планово', value: `в ${currentInterval.start}` };
       }
 
-      // 2. Find the next interval to start
-      const nextToStart = intervals.find((i: any) => i.startMin > currentMinutes);
       if (nextToStart) {
         return { label: 'Запуск планово', value: `в ${nextToStart.start}` };
       }
       
-      // No more intervals today
+      // 3. Fallback for just stopped
+      if (isReportToday && (status.includes('не працює') || status.includes('стоп') || status.includes('зупинка'))) {
+        return { label: 'Час зупинки', value: lastReportTime || '—' };
+      }
+
       return { label: 'Запуск', value: 'не планується' };
     }
   };

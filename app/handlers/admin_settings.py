@@ -10,6 +10,7 @@ from app.keyboards.inline import (
     get_scheduler_hour_kb, get_scheduler_minute_kb
 )
 from send_summary_report import run_summary_report
+from send_special_summary import run_special_summary_report
 from app.services.scheduler_tasks import send_admin_reminders, check_trader_confirmations
 
 router = Router()
@@ -108,6 +109,7 @@ async def set_reminder_interval(callback: CallbackQuery, scheduler: AsyncIOSched
 async def open_scheduler_mgmt(callback: CallbackQuery):
     jobs_info = [
         ("📊 Підсумковий звіт", await get_setting("summary_report_time", "09:40"), "summary_report_time", await get_setting("summary_report_active", "1") == "1"),
+        ("📒 Спеціальний звіт", await get_setting("special_summary_report_time", "10:00"), "special_summary_report_time", await get_setting("special_summary_report_active", "1") == "1"),
         ("🔔 Нагадування 1", await get_setting("remind_schedules_time", "13:00"), "remind_schedules_time", await get_setting("remind_schedules_active", "1") == "1"),
         ("🔔 Нагадування 2", await get_setting("remind_schedules_2_time", "15:00"), "remind_schedules_2_time", await get_setting("remind_schedules_2_active", "1") == "1"),
         ("🔍 Перевірка 1", await get_setting("check_confirmations_1_time", "14:00"), "check_confirmations_1_time", await get_setting("check_confirmations_1_active", "1") == "1"),
@@ -130,6 +132,7 @@ async def process_toggle_job(callback: CallbackQuery, scheduler: AsyncIOSchedule
     
     job_map = {
         "summary_report_time": "job_summary",
+        "special_summary_report_time": "job_special_summary",
         "remind_schedules_time": "job_remind",
         "remind_schedules_2_time": "job_remind_2",
         "check_confirmations_1_time": "job_check_1",
@@ -187,6 +190,7 @@ async def save_sched_time(callback: CallbackQuery, state: FSMContext, scheduler:
     # 2. Reschedule Job
     job_map = {
         "summary_report_time": ("job_summary", run_summary_report),
+        "special_summary_report_time": ("job_special_summary", run_special_summary_report),
         "remind_schedules_time": ("job_remind", send_admin_reminders),
         "remind_schedules_2_time": ("job_remind_2", send_admin_reminders),
         "check_confirmations_1_time": ("job_check_1", check_trader_confirmations),

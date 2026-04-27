@@ -52,10 +52,14 @@ async def main():
     # Setup Scheduler
     scheduler = AsyncIOScheduler(timezone="Europe/Kiev")
     
+    from send_summary_report import run_summary_report
+    from send_special_summary import run_special_summary_report
+
     # helper function to add jobs
     async def setup_jobs():
         jobs_data = [
             ("summary_report_time", run_summary_report, "job_summary", [bot]),
+            ("special_summary_report_time", run_special_summary_report, "job_special_summary", [bot]),
             ("remind_schedules_time", send_admin_reminders, "job_remind", [bot]),
             ("remind_schedules_2_time", send_admin_reminders, "job_remind_2", [bot]),
             ("check_confirmations_1_time", check_trader_confirmations, "job_check_1", [bot]),

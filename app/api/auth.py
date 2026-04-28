@@ -106,3 +106,27 @@ async def verify_code(payload: AuthVerify):
         "role": token_data['role'],
         "full_name": user['full_name']
     }
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(current_user: dict = Depends(get_current_user)):
+    """
+    Refreshes the current access token.
+    Only works if the current token is still valid.
+    """
+    token_data = {
+        "sub": str(current_user['user_id']),
+        "role": current_user['role'],
+        "full_name": current_user['full_name']
+    }
+    
+    # Ensure role is current (e.g. if someone was promoted to admin)
+    if current_user['user_id'] in config.admin_ids:
+        token_data['role'] = 'admin'
+
+    token = create_access_token(token_data)
+    
+    return {
+        "access_token": token,
+        "role": token_data['role'],
+        "full_name": current_user['full_name']
+    }

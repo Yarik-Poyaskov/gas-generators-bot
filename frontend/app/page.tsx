@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import GPUCard from '@/components/GPUCard';
 import { ObjectInfo } from '@/types';
 import api from '@/lib/api';
+import { authService } from '@/lib/auth-service';
 import { LayoutGrid, List, RefreshCw, Loader2, Search as SearchIcon, SortAsc, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -22,10 +23,18 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'stable' | 'stopped' | 'emergency'>('all');
 
-  const fetchObjects = async () => {
+  // Logic for "Smart Delay" (Freezing position during status change)
+  const [frozenIds, setFrozenIds] = useState<Record<number, ObjectInfo>>({});
+  const lastActivityRef = useRef<number>(Date.now());
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const fetchObjects = async (isBackground = false) => {
     try {
+      if (!isBackground) setLoading(true);
       const response = await api.get('/data/objects');
-      setObjects(response.data);
+      const newObjects = response.data;
+      
+      setObjects(newObjects);
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Failed to fetch objects:', error);
@@ -34,98 +43,171 @@ export default function Dashboard() {
     }
   };
 
+  // WebSocket Connection with Reconnect logic
+  const connectWebSocket = () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    let wsUrl = '';
+    if (process.env.NEXT_PUBLIC_WS_URL && process.env.NEXT_PUBLIC_WS_URL.startsWith('ws')) {
+      wsUrl = `${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      wsUrl = `${protocol}//${host}/api/ws/status?token=${token}`;
+    }
+
+    const socket = new WebSocket(wsUrl);
+    wsRef.current = socket;
+
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'new_report') {
+        const objId = message.data.obj_id;
+        
+        // Find the current object data to "freeze" its position
+        const currentObj = objects.find(o => o.id === objId);
+        if (currentObj) {
+          setFrozenIds(prev => ({ ...prev, [objId]: { ...currentObj } }));
+          
+          // Unfreeze after 10 seconds (move to new position)
+          setTimeout(() => {
+            setFrozenIds(prev => {
+              const next = { ...prev };
+              delete next[objId];
+              return next;
+            });
+          }, 10000);
+        }
+
+        fetchObjects(true);
+        setNewReportId(objId);
+        // Flashing for 15 seconds total (10 before move, 5 after)
+        setTimeout(() => setNewReportId(null), 15000);
+      }
+    };
+
+    socket.onclose = () => {
+      console.log('WebSocket closed. Retrying in 5s...');
+      setTimeout(connectWebSocket, 5000);
+    };
+
+    socket.onerror = (err) => {
+      console.error('WebSocket error:', err);
+      socket.close();
+    };
+  };
+
   useEffect(() => {
     const savedView = localStorage.getItem('dashboard_view_type');
     if (savedView === 'grid' || savedView === 'list') {
       setViewType(savedView);
     }
     
-    const token = localStorage.getItem('access_token');
-    if (!token) {
+    if (!localStorage.getItem('access_token')) {
       window.location.href = '/login';
       return;
     }
 
     fetchObjects();
+    connectWebSocket();
 
-    // Construct WebSocket URL dynamically
-    let wsUrl = '';
-    
-    if (process.env.NEXT_PUBLIC_WS_URL && process.env.NEXT_PUBLIC_WS_URL.startsWith('ws')) {
-      wsUrl = `${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`;
-    } else {
-      // Fallback to dynamic detection based on current URL
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host; // includes port
-      wsUrl = `${protocol}//${host}/api/ws/status?token=${token}`;
-    }
-
-    const socket = new WebSocket(wsUrl);
-
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === 'new_report') {
-        fetchObjects();
-        setNewReportId(message.data.obj_id);
-        setTimeout(() => setNewReportId(null), 5000);
+    // 1. Activity Listener (mousemove, keydown) - throttled to 10 min
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityRef.current > 10 * 60 * 1000) { // 10 minutes
+        lastActivityRef.current = now;
+        authService.refreshToken();
       }
     };
 
-    return () => {
-      socket.close();
+    // 2. Background Refresh (for TV mode) - every 1 hour
+    const backgroundInterval = setInterval(() => {
+      authService.refreshToken();
+    }, 60 * 60 * 1000);
+
+    // 3. Visibility Change (fetch on focus)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchObjects(true);
+        // Reconnect WS if it was dead
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          connectWebSocket();
+        }
+      }
     };
-  }, []);
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+      clearInterval(backgroundInterval);
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [objects.length === 0]); // Minimal re-runs
 
   const sortedObjects = useMemo(() => {
-    // 1. Filter by status dot
-    let filtered = [...objects];
+    // We use a mapping for sorting: if an ID is frozen, we use its OLD data for sorting logic
+    // but the actual list will contain the NEW data for rendering.
     
+    let baseList = [...objects];
+    
+    // 1. Filter
     if (statusFilter === 'stable') {
-      filtered = filtered.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна'));
+      baseList = baseList.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна'));
     } else if (statusFilter === 'stopped') {
-      filtered = filtered.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює'));
+      baseList = baseList.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює'));
     } else if (statusFilter === 'emergency') {
-      filtered = filtered.filter(o => (o.gpu_status || '').toLowerCase().includes('аварі') || (o.gpu_status || '').toLowerCase().includes('не готова'));
+      baseList = baseList.filter(o => (o.gpu_status || '').toLowerCase().includes('аварі') || (o.gpu_status || '').toLowerCase().includes('не готова'));
     }
 
-    // 2. Filter by search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(o => 
+      baseList = baseList.filter(o => 
         o.name.toLowerCase().includes(q) || 
         (o.short_name || '').toLowerCase().includes(q)
       );
     }
 
-    // 3. Sort
+    // 2. Sort Logic
     const sortMultiplier = sortOrder === 'asc' ? 1 : -1;
 
-    filtered.sort((a, b) => {
+    baseList.sort((a, b) => {
+      // If object is frozen, use its frozen (old) version for comparison
+      const sortA = frozenIds[a.id] || a;
+      const sortB = frozenIds[b.id] || b;
+
       let comparison = 0;
       switch (sortBy) {
         case 'alphabetical':
-          comparison = a.name.localeCompare(b.name);
+          comparison = sortA.name.localeCompare(sortB.name);
           break;
         case 'status':
           const getStatusWeight = (status: string | null = '') => {
-            if (!status || status.toLowerCase().includes('очікування')) return 10; // Waiting - Last
+            if (!status || status.toLowerCase().includes('очікування')) return 10;
             const s = status.toLowerCase();
             if (s.includes('аварі') || s.includes('не готова')) return 3;
             if (s.includes('не працює')) return 2;
             if (s.includes('стабільна')) return 0;
             return 4;
           };
-          comparison = getStatusWeight(a.gpu_status) - getStatusWeight(b.gpu_status);
+          comparison = getStatusWeight(sortA.gpu_status) - getStatusWeight(sortB.gpu_status);
           break;
         case 'power':
-          comparison = Number(b.load_power_percent || 0) - Number(a.load_power_percent || 0);
+          comparison = Number(sortB.load_power_percent || 0) - Number(sortA.load_power_percent || 0);
           break;
       }
       return comparison * sortMultiplier;
     });
 
-    return filtered;
-  }, [objects, sortBy, sortOrder, searchQuery, statusFilter]);
+    return baseList;
+  }, [objects, sortBy, sortOrder, searchQuery, statusFilter, frozenIds]);
 
   const handleViewChange = (type: 'grid' | 'list') => {
     setViewType(type);
@@ -144,7 +226,6 @@ export default function Dashboard() {
       setSearchQuery={setSearchQuery}
       headerCenterContent={
         <div className="flex items-center gap-4 lg:gap-8">
-          {/* Title & Time Group */}
           <div className="flex items-center gap-4">
             <div className="flex flex-col">
               <h1 className="text-sm font-black text-slate-900 dark:text-white leading-none tracking-tight flex items-center gap-2">
@@ -158,7 +239,6 @@ export default function Dashboard() {
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden lg:block" />
           </div>
 
-          {/* Interactive Compact Stats - Clickable filters */}
           <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-inner">
             {[
               { id: 'all', label: 'Усього', value: objects.length, color: 'blue', bg: 'bg-blue-500' },
@@ -176,7 +256,7 @@ export default function Dashboard() {
                   {stat.value}
                 </span>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block bg-slate-800 text-white text-[9px] px-2 py-1 rounded-lg shadow-2xl whitespace-nowrap z-50 border border-slate-700">
-                  {stat.label} {statusFilter === stat.id ? '(активно)' : ''}
+                  {stat.label}
                 </div>
               </button>
             ))}
@@ -184,7 +264,6 @@ export default function Dashboard() {
 
           <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block" />
 
-          {/* Controls - More spaced out icons */}
           <div className="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
             <div className="relative">
               <button 
@@ -222,7 +301,6 @@ export default function Dashboard() {
             <button 
               onClick={() => handleViewChange(viewType === 'grid' ? 'list' : 'grid')}
               className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
-              title={viewType === 'grid' ? 'Список' : 'Плитка'}
             >
               {viewType === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
             </button>
@@ -230,7 +308,6 @@ export default function Dashboard() {
             <button 
               onClick={() => {setLoading(true); fetchObjects();}}
               className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-[#004899] transition-all group"
-              title="Оновити"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
             </button>
@@ -239,7 +316,6 @@ export default function Dashboard() {
       }
     >
       <div className="flex flex-col gap-6">
-
         <AnimatePresence mode="wait">
           {loading && objects.length === 0 ? (
             <motion.div 
@@ -251,11 +327,6 @@ export default function Dashboard() {
             >
               <div className="relative">
                 <div className="h-16 w-16 rounded-full border-4 border-slate-100 border-t-[#004899] animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center">
-                    <RefreshCw className="h-4 w-4 text-[#004899] animate-pulse" />
-                  </div>
-                </div>
               </div>
               <p className="text-slate-500 font-bold mt-6 animate-pulse uppercase tracking-[0.2em] text-[10px]">Завантаження даних...</p>
             </motion.div>
@@ -348,14 +419,8 @@ export default function Dashboard() {
             </div>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Об'єктів не знайдено</h3>
             <p className="text-slate-500 dark:text-slate-400 max-w-xs mt-3 font-medium">
-              Схоже, за вашим аккаунтом не закріплено жодного об'єкта або база даних наразі порожня.
+              Схоже, за вашим аккаунтом не закріплено жодного об'єкта.
             </p>
-            <button 
-              onClick={() => {setLoading(true); fetchObjects();}}
-              className="mt-8 bg-[#004899] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-500/20 hover:bg-[#003675] transition-all"
-            >
-              Перевірити ще раз
-            </button>
           </div>
         )}
       </div>

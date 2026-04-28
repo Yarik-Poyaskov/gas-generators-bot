@@ -96,8 +96,12 @@ async def process_event_reminder(bot, schedule_id, group_id, obj_name, event_tim
             if await was_reminder_sent(schedule_id, event_type, event_time_str):
                 return
 
-            # Check if report already exists in DB
-            if await check_report_exists(obj_name, event_type, today_db):
+            # CONVERT event time to UTC for DB search
+            # (Assuming +3h offset for Kyiv)
+            event_utc = event_dt - timedelta(hours=3)
+
+            # Check if report already exists in DB (around or after event time)
+            if await check_report_exists(obj_name, event_type, event_utc):
                 return
 
             # If we are here - report is missing!

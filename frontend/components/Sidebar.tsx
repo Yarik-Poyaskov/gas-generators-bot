@@ -2,17 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Calendar, 
-  Settings, 
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Zap,
+  Calendar,
+  Settings,
   LogOut,
   Building2,
   ChevronRight,
   ChevronLeft
-} from 'lucide-react';
-import { authService } from '@/lib/auth-service';
+} from 'lucide-react';import { authService } from '@/lib/auth-service';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion } from 'framer-motion';
@@ -23,7 +23,8 @@ function cn(...inputs: ClassValue[]) {
 
 const navItems = [
   { name: 'Дашборд', href: '/', icon: LayoutDashboard },
-  { name: 'Історія звітів', href: '/reports', icon: FileText },
+  { name: 'Звіт (чергові)', href: '/reports/summary-shifts', icon: ClipboardList },
+  { name: 'Звіт за сьогодні', href: '/reports/summary-power', icon: Zap },
   { name: 'Графіки (Трейдер)', href: '/trader', icon: Calendar },
   { name: 'Налаштування', href: '/settings', icon: Settings },
 ];

@@ -21,6 +21,23 @@ export const authService = {
     return data;
   },
 
+  async refreshToken(): Promise<TokenResponse | null> {
+    try {
+      const response = await api.post('/auth/refresh');
+      const data = response.data;
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('user_role', data.role);
+        localStorage.setItem('full_name', data.full_name);
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      return null;
+    }
+  },
+
   logout() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token');

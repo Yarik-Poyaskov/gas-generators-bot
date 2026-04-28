@@ -57,6 +57,13 @@ async def get_reports(limit: int = 50, offset: int = 0, current_user: dict = Dep
         
     return reports
 
+@router.get("/summary")
+async def get_summary(current_user: dict = Depends(get_current_user)):
+    """Returns summary report data for today (since 01:00)."""
+    from app.db.database import get_summary_data
+    data = await get_summary_data()
+    return data
+
 @router.post("/trader/parse")
 async def parse_schedule_text(payload: dict, current_user: dict = Depends(require_role(["admin", "trader"]))):
     """Parses trader's schedule text using the existing bot logic."""

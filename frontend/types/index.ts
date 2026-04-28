@@ -43,6 +43,20 @@ export interface ReportInfo {
   created_at: string;
 }
 
+export interface SummaryReportData {
+  id: number;
+  tc_name: string;
+  work_mode: string;
+  start_time: string;
+  load_power_percent: string;
+  load_power_kw: string;
+  gpu_status: string;
+  total_mwh: number;
+  total_hours: number;
+  duty_info: string;
+  created_at_kiev: string;
+}
+
 export interface TokenResponse {
   access_token: string;
   token_type: string;

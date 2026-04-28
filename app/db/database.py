@@ -1,7 +1,7 @@
 import aiosqlite
 import json
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Dict, Any, Optional, List
 
 DB_PATH = "reports.db"
@@ -549,6 +549,88 @@ async def update_broadcast_pin_status(broadcast_id: int, is_pinned: bool):
         await db.execute("UPDATE broadcast_messages SET is_pinned = ? WHERE broadcast_id = ?", (1 if is_pinned else 0, broadcast_id))
         await db.commit()
 
+async def get_summary_data():
+    """
+    Извлекает данные для веб-отчетов. 
+    Выбирает полные отчеты за сегодня с 01:00 (Киев).
+    """
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+    
+    KYIV_TZ = ZoneInfo("Europe/Kiev")
+    now_kiev = datetime.now(KYIV_TZ)
+    today_str = now_kiev.strftime("%Y-%m-%d")
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        
+        # 1. Получаем все отчеты за сегодня и вчера (чтобы отфильтровать по Киевскому времени)
+        query = """
+            SELECT r.*, u.full_name as reported_by_name
+            FROM reports r
+            LEFT JOIN users u ON r.user_id = u.user_id
+            WHERE r.battery_voltage IS NOT NULL 
+            AND date(r.created_at) >= date('now', '-1 day')
+            ORDER BY r.created_at DESC
+        """
+        cursor = await db.execute(query)
+        rows = await cursor.fetchall()
+        
+        # 2. Получаем активные смены
+        cursor = await db.execute("""
+            SELECT s.object_id, u.full_name, u.phone_number 
+            FROM shifts s 
+            JOIN users u ON s.user_id = u.user_id 
+            WHERE s.end_time IS NULL
+        """)
+        shift_rows = await cursor.fetchall()
+        shifts = {r['object_id']: f"{r['full_name']} ({r['phone_number'] or '—'})" for r in shift_rows}
+        
+        # 3. Получаем маппинг объектов для сопоставления tc_name и object_id
+        cursor = await db.execute("SELECT id, name FROM objects")
+        obj_rows = await cursor.fetchall()
+        obj_map = {r['name']: r['id'] for r in obj_rows}
+        
+        filtered_results = []
+        seen_objects = set()
+        
+        for row in rows:
+            d = dict(row)
+            
+            # Конвертируем создано_ат в Киев
+            try:
+                dt_utc = datetime.strptime(d['created_at'], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            except:
+                dt_utc = datetime.fromisoformat(d['created_at'].replace('Z', '')).replace(tzinfo=timezone.utc)
+                
+            dt_kiev = dt_utc.astimezone(KYIV_TZ)
+            
+            # Фильтр: сегодня и время >= 01:00
+            if dt_kiev.date() == now_kiev.date() and dt_kiev.hour >= 1:
+                # Берем только самый свежий отчет для каждого объекта
+                obj_name_full = d['tc_name']
+                if obj_name_full in seen_objects:
+                    continue
+                seen_objects.add(obj_name_full)
+                
+                # Находим duty_info
+                duty_info = "—"
+                for name, oid in obj_map.items():
+                    if name in obj_name_full:
+                        duty_info = shifts.get(oid, "—")
+                        break
+                
+                d['duty_info'] = duty_info
+                d['created_at_kiev'] = dt_kiev.strftime("%H:%M")
+                filtered_results.append(d)
+                
+        # Сортировка по имени объекта
+        filtered_results.sort(key=lambda x: x['tc_name'])
+        return filtered_results
+
+
 async def delete_broadcast_from_db(broadcast_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM broadcasts WHERE id = ?", (broadcast_id,))
@@ -629,24 +711,25 @@ async def log_sent_reminder(schedule_id: int, event_type: str, event_time: str):
         )
         await db.commit()
 
-async def check_report_exists(object_name: str, report_type: str, date_str: str) -> bool:
+async def check_report_exists(object_name: str, report_type: str, target_datetime: datetime) -> bool:
     """
-    Checks if a report of a certain type (start/stop) exists for an object today.
-    object_name: name of the object to search for in tc_name.
-    report_type: 'start' or 'stop'.
-    date_str: 'YYYY-MM-DD'.
+    Checks if a report of a certain type (start/stop) exists for an object
+    that was created around or after the target event time.
+    target_datetime: event time in UTC.
     """
+    # Look for reports created within a window: from 1 hour before event to now
+    start_window = target_datetime - timedelta(hours=1)
+    
     async with aiosqlite.connect(DB_PATH) as db:
-        # We check both the time_type field and the raw status text just in case
         cursor = await db.execute(
             """
             SELECT 1 FROM reports 
             WHERE tc_name LIKE '%' || ? || '%' 
             AND time_type = ? 
-            AND date(created_at) = ?
+            AND created_at >= ?
             LIMIT 1
             """,
-            (object_name, report_type, date_str)
+            (object_name, report_type, start_window.strftime("%Y-%m-%d %H:%M:%S"))
         )
         return await cursor.fetchone() is not None
 

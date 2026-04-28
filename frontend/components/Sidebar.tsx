@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -36,6 +37,21 @@ interface SidebarProps {
 
 export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUserRole(authService.getUserRole());
+  }, []);
+
+  const filteredNavItems = navItems.filter(item => {
+    // Basic rules:
+    // Regular users can only see Dashboard.
+    // Traders and Admins see everything.
+    if (userRole === 'user') {
+      return item.href === '/';
+    }
+    return true;
+  });
 
   return (
     <>
@@ -95,7 +111,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             {!isCollapsed && (
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 mb-2 mt-4">Основне меню</div>
             )}
-            {navItems.map((item) => {
+            {filteredNavItems.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link

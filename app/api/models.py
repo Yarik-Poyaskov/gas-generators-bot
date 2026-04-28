@@ -33,6 +33,8 @@ class ObjectInfo(BaseModel):
     time_type: Optional[str] = None # 'start', 'stop' or None
     last_report_at: Optional[datetime] = None
     reported_by: Optional[str] = None
+    current_shift_name: Optional[str] = None
+    current_shift_phone: Optional[str] = None
     telegram_group_id: Optional[int] = None
     is_not_working: bool = False
     current_schedule: List[Any] = []

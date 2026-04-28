@@ -145,11 +145,28 @@ async def get_objects_with_latest_status():
         """
         cursor = await db.execute(query, (today_str, today_str, today_str))
         rows = await cursor.fetchall()
-        
+
+        # Fetch all active shifts at once to map them efficiently
+        shift_cursor = await db.execute("""
+            SELECT s.object_id, u.full_name, u.phone_number 
+            FROM shifts s 
+            JOIN users u ON s.user_id = u.user_id 
+            WHERE s.end_time IS NULL
+        """)
+        shift_rows = await shift_cursor.fetchall()
+        active_shifts = {r['object_id']: (r['full_name'], r['phone_number']) for r in shift_rows}
+
         result = []
         for row in rows:
             d = dict(row)
+
+            # Map shift info
+            shift_info = active_shifts.get(d['id'])
+            d['current_shift_name'] = shift_info[0] if shift_info else None
+            d['current_shift_phone'] = shift_info[1] if shift_info else None
+
             name = d['name']
+
             short = name
             short = name
             if '(' in name and ')' in name:

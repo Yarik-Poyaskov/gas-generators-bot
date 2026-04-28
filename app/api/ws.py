@@ -8,37 +8,45 @@ router = APIRouter(tags=["WebSockets"])
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: dict[WebSocket, str] = {} # WebSocket -> Full Name
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, full_name: str):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        self.active_connections[websocket] = full_name
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+            del self.active_connections[websocket]
+
+    def get_online_users(self) -> List[str]:
+        # Return unique names
+        return list(set(self.active_connections.values()))
 
     async def broadcast(self, message: dict):
-        # We use a copy to avoid modification during iteration
-        for connection in list(self.active_connections):
+        for websocket in list(self.active_connections.keys()):
             try:
-                await connection.send_json(message)
+                await websocket.send_json(message)
             except Exception:
-                self.disconnect(connection)
+                self.disconnect(websocket)
 
 manager = ConnectionManager()
 
+@router.get("/online")
+async def get_online_users():
+    """Returns a list of unique names of users currently connected via WebSocket."""
+    return manager.get_online_users()
+
 @router.websocket("/ws/status")
 async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(None)):
-    if not token or not decode_access_token(token):
-        # Reject unauthorized connections
-        await websocket.close(code=1008) # 1008 is Policy Violation
+    payload = decode_access_token(token) if token else None
+    if not payload:
+        await websocket.close(code=1008)
         return
 
-    await manager.connect(websocket)
+    full_name = payload.get("full_name", "Unknown")
+    await manager.connect(websocket, full_name)
     try:
         while True:
-            # We don't expect messages from client, but must read to detect disconnects
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

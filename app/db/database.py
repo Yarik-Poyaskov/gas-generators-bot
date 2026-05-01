@@ -809,3 +809,21 @@ async def set_planned_end_time(shift_id: int, planned_time: str):
             (planned_dt.strftime("%Y-%m-%d %H:%M:%S"), shift_id)
         )
         await db.commit()
+
+async def add_monthly_report(data: dict):
+    """Saves a monthly GPU performance report to the database."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO monthly_reports (
+                object_id, user_id, report_month, report_year, 
+                energy_mwh, gas_start, gas_end, gas_coef, gas_total,
+                oil_start, oil_end, oil_added, oil_total,
+                spec_gas, spec_oil
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data['object_id'], data['user_id'], data['report_month'], data['report_year'],
+            data['energy_mwh'], data['gas_start'], data['gas_end'], data['gas_coef'], data['gas_total'],
+            data['oil_start'], data['oil_end'], data['oil_added'], data['oil_total'],
+            data['spec_gas'], data['spec_oil']
+        ))
+        await db.commit()

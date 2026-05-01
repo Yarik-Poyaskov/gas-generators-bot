@@ -13,7 +13,7 @@ from app.db.database import init_db, get_setting
 from app.handlers import (
     common, report, admin, trader, schedule_confirm, 
     groups, admin_edit, admin_settings, trader_parser, admin_broadcast,
-    shifts
+    shifts, monthly_report
 )
 from app.middlewares.logging import ActionLoggingMiddleware
 from send_summary_report import run_summary_report
@@ -48,6 +48,7 @@ async def main():
     dp.include_router(admin_broadcast.router)
     dp.include_router(admin.router)
     dp.include_router(shifts.router)
+    dp.include_router(monthly_report.router)
     dp.include_router(common.router)
     
     # Setup Scheduler

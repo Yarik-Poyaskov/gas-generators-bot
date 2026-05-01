@@ -10,6 +10,7 @@ from app.config import config
 from app.db.database import get_user, get_user_by_phone, update_user_link
 from app.keyboards.reply import get_main_menu_keyboard 
 from app.handlers.report import start_report 
+from app.states.monthly_report import MonthlyReportState
 
 router = Router()
 cancel_router = Router() # Special router for high-priority cancel commands
@@ -25,18 +26,47 @@ def normalize_phone(phone: str) -> str:
     return digits
 
 # --- Global Cancel Handler ---
-@cancel_router.message(F.text.casefold() == "відміна")
+# This handler intercepts 'Відміна' or main menu buttons to cancel any process
+@cancel_router.message(lambda m: m.text and (m.text.casefold() == "відміна" or m.text in [
+    "Графік роботи ГПУ", "Подати чек-лист", "Статус ГПУ", 
+    "Адмін панель", "👤 Керування змінами", "📊Звіт показників роботи ГПУ за місяць"
+]))
 @cancel_router.message(Command("cancel"))
 async def global_cancel(message: Message, state: FSMContext):
     """
     Глобальний обробник скасування будь-якої дії.
-    Працює в будь-якому стані (FSM).
+    Спрацьовує ТІЛЬКИ на ключові слова або кнопки меню.
     """
     user_id = message.from_user.id
     is_admin = user_id in config.admin_ids
     user_data = await get_user(user_id)
     role = user_data['role'] if user_data else 'user'
     
+    # If it was a main menu button, we want to clear state and redirect
+    if message.text in [
+        "Графік роботи ГПУ", "Подати чек-лист", "Статус ГПУ", 
+        "Адмін панель", "👤 Керування змінами", "📊Звіт показників роботи ГПУ за місяць"
+    ]:
+        await state.clear()
+        if message.text == "Адмін панель":
+            from app.handlers.admin import cmd_admin_panel
+            return await cmd_admin_panel(message, state)
+        elif message.text == "Статус ГПУ":
+            from app.handlers.report import start_short_report
+            return await start_short_report(message, state)
+        elif message.text == "Подати чек-лист":
+            return await start_report(message, state)
+        elif message.text == "📊Звіт показників роботи ГПУ за місяць":
+            from app.handlers.monthly_report import cmd_monthly_report_start
+            return await cmd_monthly_report_start(message, state)
+        elif message.text == "Графік роботи ГПУ":
+            from app.handlers.trader import cmd_trader_schedule_start
+            return await cmd_trader_schedule_start(message, state)
+        elif message.text == "👤 Керування змінами":
+            from app.handlers.shifts import cmd_shifts_start
+            return await cmd_shifts_start(message, state)
+
+    # If it was just 'Відміна' text or /cancel
     await state.clear()
     await message.answer(
         "Дію скасовано. Ви повернулись до головного меню.",

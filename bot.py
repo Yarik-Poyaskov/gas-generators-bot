@@ -37,7 +37,8 @@ async def main():
     dp.update.outer_middleware(ActionLoggingMiddleware())
 
     # Include routers
-    dp.include_router(trader_parser.router) # Auto-parser for group messages - Highest priority in groups
+    dp.include_router(common.cancel_router) # Highest priority: Global Cancel
+    dp.include_router(trader_parser.router) # Auto-parser for group messages
     dp.include_router(groups.router)
     dp.include_router(trader.router)
     dp.include_router(schedule_confirm.router)

@@ -372,6 +372,9 @@ async def handle_power_type_selection(callback: CallbackQuery, state: FSMContext
 
 @router.message(ReportState.load_power_percent)
 async def set_load_power_percent(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+        
     if not message.text:
         await message.answer("Будь ласка, введіть число (наприклад: 50.5)")
         return
@@ -385,6 +388,9 @@ async def set_load_power_percent(message: Message, state: FSMContext):
 
 @router.message(ReportState.load_power_kw)
 async def set_load_power_kw(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+
     if not message.text:
         await message.answer("Будь ласка, введіть число (наприклад: 1200)")
         return
@@ -412,9 +418,27 @@ async def set_load_power_kw(message: Message, state: FSMContext):
 
 @router.message(ReportState.gpu_status)
 async def set_gpu_status(message: Message, state: FSMContext):
-    if not message.text:
-        await message.answer("Будь ласка, оберіть статус кнопкою або введіть текст.")
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+
+    allowed_statuses = ["Стабільна", "З аваріями", "Не працює"]
+    if not message.text or message.text not in allowed_statuses:
+        data = await state.get_data()
+        is_short = data.get("is_short", False)
+        is_working = data.get("is_gpu_working", True)
+        time_label = data.get("time_label", "")
+        
+        if is_short:
+            kb = get_gpu_status_short_stop_kb() if "Час зупинки" in time_label else get_gpu_status_short_launch_kb()
+        else:
+            kb = get_gpu_status_active_kb() if is_working else get_gpu_status_not_active_kb()
+            
+        await message.answer(
+            "⚠️ Будь ласка, оберіть статус за допомогою <b>кнопок</b> під повідомленням.",
+            reply_markup=get_cancel_keyboard(kb)
+        )
         return
+
     await state.update_data(gpu_status=message.text)
     data = await state.get_data()
     if data.get("is_short"):
@@ -425,6 +449,9 @@ async def set_gpu_status(message: Message, state: FSMContext):
 
 @router.message(ReportState.battery_voltage)
 async def set_battery_voltage(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+
     # 0. Check if text exists (prevents error if user sends a photo instead)
     if not message.text:
         await message.answer(
@@ -471,6 +498,8 @@ async def set_battery_voltage(message: Message, state: FSMContext):
 
 @router.message(ReportState.pressure_before)
 async def set_pressure_before(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
     if not message.text:
         await message.answer("Будь ласка, введіть число.")
         return
@@ -502,6 +531,8 @@ async def handle_skip_pressure_after(callback: CallbackQuery, state: FSMContext)
 
 @router.message(ReportState.pressure_after)
 async def set_pressure_after(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
     if not message.text:
         await message.answer("Будь ласка, введіть число або '-'")
         return
@@ -519,6 +550,8 @@ async def set_pressure_after(message: Message, state: FSMContext):
 
 @router.message(ReportState.total_mwh)
 async def set_total_mwh(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
     if not message.text:
         await message.answer("Будь ласка, введіть число.")
         return
@@ -532,6 +565,8 @@ async def set_total_mwh(message: Message, state: FSMContext):
 
 @router.message(ReportState.total_hours)
 async def set_total_hours(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
     if not message.text:
         await message.answer("Будь ласка, введіть число.")
         return
@@ -545,6 +580,8 @@ async def set_total_hours(message: Message, state: FSMContext):
 
 @router.message(ReportState.oil_sampling_limit)
 async def set_oil_sampling_limit(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
     if not message.text:
         await message.answer("Будь ласка, введіть число.")
         return
@@ -591,9 +628,13 @@ async def set_photo_shos_invalid(message: Message, state: FSMContext):
 @router.message(ReportState.power_type)
 @router.message(ReportState.apparatus_check)
 @router.message(ReportState.waiting_for_confirmation)
+@router.message(ReportState.is_gpu_working)
 async def handle_inline_kb_fallbacks(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+
     # If user clicks a main menu button, we should cancel current report and proceed
-    main_commands = ["Графік роботи ГПУ", "Подати чек-лист", "Статус ГПУ", "Адмін панель"]
+    main_commands = ["Графік роботи ГПУ", "Подати чек-лист", "Статус ГПУ", "Адмін панель", "👤 Керування змінами"]
     if message.text in main_commands:
         await state.clear()
         # Re-route to the appropriate handler based on text
@@ -607,6 +648,9 @@ async def handle_inline_kb_fallbacks(message: Message, state: FSMContext):
         elif message.text == "Графік роботи ГПУ":
             from app.handlers.trader import cmd_trader_schedule_start
             return await cmd_trader_schedule_start(message, state)
+        elif message.text == "👤 Керування змінами":
+            from app.handlers.shifts import cmd_shifts_start
+            return await cmd_shifts_start(message, state)
 
     await message.answer("⚠️ Будь ласка, використовуйте <b>кнопки</b> під повідомленням для вибору.")
 

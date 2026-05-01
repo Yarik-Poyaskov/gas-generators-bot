@@ -89,7 +89,7 @@ def format_html_table(reports, shifts, obj_map):
     """Создает HTML для сводной таблицы с информацией о дежурных."""
     rows_html = ""
     period_str = get_report_period_str()
-    for r in reports:
+    for idx, r in enumerate(reports, 1):
         gpu_status = r.get('gpu_status') or "—"
         status_style = "status-ok" if "Стабільна" in gpu_status else "status-err"
         
@@ -116,6 +116,7 @@ def format_html_table(reports, shifts, obj_map):
 
         rows_html += f"""
         <tr>
+            <td style="text-align: center; color: #9aa0a6; font-weight: bold; width: 30px;">{idx}</td>
             <td>{display_name}</td>
             <td>{work_mode}</td>
             <td>{s_time}</td>
@@ -152,6 +153,7 @@ def format_html_table(reports, shifts, obj_map):
             <table>
                 <thead>
                     <tr>
+                        <th style="text-align: center; width: 30px;">№</th>
                         <th>Об'єкт</th>
                         <th>Режим</th>
                         <th>Час запуску</th>

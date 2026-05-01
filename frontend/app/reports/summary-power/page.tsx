@@ -73,6 +73,7 @@ export default function SummaryPowerPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-bottom border-slate-200 dark:border-slate-800">
+                  <th className="px-6 py-4 text-center text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12">№</th>
                   <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Об'єкт</th>
                   <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Режим</th>
                   <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Час запуску</th>
@@ -98,13 +99,16 @@ export default function SummaryPowerPage() {
                     </td>
                   </tr>
                 ) : (
-                  data.map((item) => (
+                  data.map((item, index) => (
                     <motion.tr 
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       key={item.id} 
                       className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group"
                     >
+                      <td className="px-6 py-4 text-center text-xs font-black text-slate-400">
+                        {index + 1}
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-amber-600 transition-colors">

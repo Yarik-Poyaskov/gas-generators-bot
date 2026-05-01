@@ -12,6 +12,7 @@ from app.keyboards.reply import get_main_menu_keyboard
 from app.handlers.report import start_report 
 
 router = Router()
+cancel_router = Router() # Special router for high-priority cancel commands
 
 class RegistrationState(StatesGroup):
     waiting_for_contact = State()
@@ -22,6 +23,25 @@ def normalize_phone(phone: str) -> str:
     if len(digits) == 10 and digits.startswith('0'):
         return '38' + digits
     return digits
+
+# --- Global Cancel Handler ---
+@cancel_router.message(F.text.casefold() == "відміна")
+@cancel_router.message(Command("cancel"))
+async def global_cancel(message: Message, state: FSMContext):
+    """
+    Глобальний обробник скасування будь-якої дії.
+    Працює в будь-якому стані (FSM).
+    """
+    user_id = message.from_user.id
+    is_admin = user_id in config.admin_ids
+    user_data = await get_user(user_id)
+    role = user_data['role'] if user_data else 'user'
+    
+    await state.clear()
+    await message.answer(
+        "Дію скасовано. Ви повернулись до головного меню.",
+        reply_markup=get_main_menu_keyboard(is_admin=is_admin, role=role)
+    )
 
 # Команда для удаления меню в группах
 @router.message(Command("clear"))

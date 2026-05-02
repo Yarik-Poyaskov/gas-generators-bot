@@ -21,6 +21,7 @@ export interface ObjectInfo {
   reported_by?: string;
   telegram_group_id?: number;
   is_not_working?: boolean;
+  is_required?: boolean;
   current_schedule?: any[];
 }
 

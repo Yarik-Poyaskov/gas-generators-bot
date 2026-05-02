@@ -369,10 +369,12 @@ def get_object_selection_kb(objects: list, page: int = 0, per_page: int = 10) ->
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def get_object_manage_kb(object_id: int) -> InlineKeyboardMarkup:
+def get_object_manage_kb(object_id: int, is_required: bool = True) -> InlineKeyboardMarkup:
     """Generates an inline keyboard for managing a single object."""
+    req_status = "✅ ТАК" if is_required else "❌ НІ"
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text=f"📋 Обов'язковий звіт: {req_status}", callback_data=f"toggle_obj_req:{object_id}:{1 if is_required else 0}")],
             [InlineKeyboardButton(text="✏️ Змінити назву", callback_data=f"edit_obj_name:{object_id}")],
             [InlineKeyboardButton(text="💬 Прив'язати групу", callback_data=f"link_obj_grp:{object_id}")],
             [InlineKeyboardButton(text="👥 Показати користувачів", callback_data=f"show_obj_users:{object_id}")],
@@ -663,6 +665,12 @@ def get_settings_keyboard(trader_pm: bool, trader_groups: bool, hide_not_working
                 InlineKeyboardButton(
                     text=f"⏰ Запас звіту: {report_margin}хв",
                     callback_data="set_report_margin_list"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔔 Час алерта Чек-листа",
+                    callback_data="set_alert_time_list"
                 )
             ],
             [

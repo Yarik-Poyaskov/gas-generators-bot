@@ -103,7 +103,7 @@ export default function SummaryPowerPage() {
                     <motion.tr 
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      key={item.id} 
+                      key={item.tc_name} 
                       className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group"
                     >
                       <td className="px-6 py-4 text-center text-xs font-black text-slate-400">

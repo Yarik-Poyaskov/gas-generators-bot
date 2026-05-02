@@ -9,6 +9,7 @@ from app.db.database import (
     add_authorized_user, get_all_users, update_user_name_by_id, 
     delete_user_by_id, update_user_phone, get_user_by_db_id, get_all_traders,
     add_object, get_all_objects, get_object_by_id, update_object_name, delete_object_by_id,
+    update_object_required,
     toggle_user_object_link, get_user_objects, get_object_users,
     get_all_telegram_groups, link_group_to_object, get_telegram_group
 )
@@ -557,13 +558,29 @@ async def process_manage_object(callback: CallbackQuery):
         group = await get_telegram_group(obj['telegram_group_id'])
         group_info = group['title'] if group else f"ID: {obj['telegram_group_id']}"
 
+    is_req = bool(obj.get('is_required', 1))
+    req_text = "✅ ТАК" if is_req else "❌ НІ"
+
     text = f"🏢 **Керування об'єктом**\n\n"
     text += f"ID: `{obj['id']}`\n"
     text += f"Назва: **{obj['name']}**\n"
-    text += f"Група: {group_info}"
+    text += f"Група: {group_info}\n"
+    text += f"Обов'язковий звіт: {req_text}"
 
-    await callback.message.edit_text(text, reply_markup=get_object_manage_kb(obj['id']), parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=get_object_manage_kb(obj['id'], is_req), parse_mode="Markdown")
     await callback.answer()
+
+@router.callback_query(F.data.startswith("toggle_obj_req:"))
+async def process_toggle_obj_required(callback: CallbackQuery):
+    parts = callback.data.split(":")
+    obj_id = int(parts[1])
+    current_val = int(parts[2])
+    
+    new_val = not bool(current_val)
+    await update_object_required(obj_id, new_val)
+    
+    await callback.answer(f"✅ Статус обов'язковості змінено на {'ТАК' if new_val else 'НІ'}")
+    await process_manage_object(callback)
 
 # --- Rename Object ---
 @router.callback_query(F.data.startswith("edit_obj_name:"))

@@ -1,6 +1,7 @@
 import json
 import logging
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 try:
     from zoneinfo import ZoneInfo
@@ -14,11 +15,76 @@ from app.db.database import (
     check_report_exists, 
     was_reminder_sent, 
     log_sent_reminder,
-    get_setting
+    get_setting,
+    get_required_objects,
+    get_active_shift_on_object,
+    get_reports_by_date
 )
 
 logger = logging.getLogger(__name__)
 KYIV_TZ = ZoneInfo("Europe/Kiev")
+
+async def check_mandatory_checklists(bot: Bot):
+    """
+    Checks if all mandatory objects have submitted at least one report today.
+    If not, sends an alert to the object's group.
+    """
+    now_kyiv = datetime.now(KYIV_TZ)
+    today_db = now_kyiv.strftime("%Y-%m-%d")
+    
+    # 1. Get all mandatory objects
+    req_objects = await get_required_objects()
+    if not req_objects:
+        return
+
+    # 2. Get all reports for today
+    today_reports = await get_reports_by_date(today_db)
+    
+    # Create a set of object names that HAVE reports today
+    reported_objects = set()
+    for r in today_reports:
+        # Extract name part inside parentheses if exists
+        name = r['tc_name']
+        reported_objects.add(name)
+        # Also try to match by short name or partial name to be safe
+        match = re.search(r'\((.*?)\)', name)
+        if match:
+            reported_objects.add(match.group(1))
+
+    for obj in req_objects:
+        group_id = obj['telegram_group_id']
+        if not group_id:
+            continue
+            
+        # Check if this object has any report today
+        obj_name = obj['name']
+        short_name = obj_name
+        match = re.search(r'\((.*?)\)', obj_name)
+        if match:
+            short_name = match.group(1)
+            
+        has_report = False
+        for rep_name in reported_objects:
+            if short_name in rep_name or obj_name in rep_name:
+                has_report = True
+                break
+        
+        if not has_report:
+            # Report is MISSING!
+            # 3. Check for active shift
+            shift = await get_active_shift_on_object(obj['id'])
+            
+            if shift:
+                mention = f"<b>{shift['full_name']}</b>"
+                msg = f"⚠️ {mention}, Ви не подали Чек Лист!"
+            else:
+                msg = "⚠️ Ви не подали Чек Лист!"
+                
+            try:
+                await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML")
+                logger.info(f"Sent mandatory checklist alert for {obj_name}")
+            except Exception as e:
+                logger.error(f"Failed to send alert to group {group_id}: {e}")
 
 async def check_and_send_report_reminders(bot: Bot):
     """

@@ -56,12 +56,14 @@ async def main():
     
     from send_summary_report import run_summary_report
     from send_special_summary import run_special_summary_report
+    from app.services.report_reminders import check_mandatory_checklists
 
     # helper function to add jobs
     async def setup_jobs():
         jobs_data = [
             ("summary_report_time", run_summary_report, "job_summary", [bot]),
             ("special_summary_report_time", run_special_summary_report, "job_special_summary", [bot]),
+            ("alert_checklist_time", check_mandatory_checklists, "job_alert_checklist", [bot]),
             ("remind_schedules_time", send_admin_reminders, "job_remind", [bot]),
             ("remind_schedules_2_time", send_admin_reminders, "job_remind_2", [bot]),
             ("check_confirmations_1_time", check_trader_confirmations, "job_check_1", [bot]),

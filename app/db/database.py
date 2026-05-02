@@ -1,6 +1,7 @@
 import aiosqlite
 import json
 import logging
+import re
 from datetime import datetime, date, timedelta, timezone
 from typing import Dict, Any, Optional, List
 
@@ -49,6 +50,12 @@ async def init_db():
         await db.execute("CREATE TABLE IF NOT EXISTS telegram_groups (id INTEGER PRIMARY KEY AUTOINCREMENT, tg_id BIGINT UNIQUE NOT NULL, title TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
         await db.execute("CREATE TABLE IF NOT EXISTS user_objects (user_db_id INTEGER, object_id INTEGER, PRIMARY KEY (user_db_id, object_id), FOREIGN KEY (user_db_id) REFERENCES users (id) ON DELETE CASCADE, FOREIGN KEY (object_id) REFERENCES objects (id) ON DELETE CASCADE)")
         await db.execute("CREATE TABLE IF NOT EXISTS trader_schedules (id INTEGER PRIMARY KEY AUTOINCREMENT, object_id INTEGER NOT NULL, trader_id BIGINT NOT NULL, target_date TEXT NOT NULL, schedule_json TEXT, is_not_working BOOLEAN DEFAULT 0, confirmed_by INTEGER, confirmed_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (object_id) REFERENCES objects (id), FOREIGN KEY (confirmed_by) REFERENCES users (id))")
+        
+        # Ensure is_required exists in objects
+        try:
+            await db.execute("ALTER TABLE objects ADD COLUMN is_required INTEGER DEFAULT 1")
+        except: pass
+
         await db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         await db.execute("CREATE TABLE IF NOT EXISTS web_auth_codes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id BIGINT NOT NULL, code TEXT NOT NULL, expires_at DATETIME NOT NULL)")
         await db.execute("CREATE TABLE IF NOT EXISTS trader_announcements (id INTEGER PRIMARY KEY AUTOINCREMENT, trader_id BIGINT NOT NULL, target_date TEXT NOT NULL, chat_id BIGINT NOT NULL, message_id BIGINT NOT NULL, object_id INTEGER, message_type TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
@@ -126,7 +133,7 @@ async def get_objects_with_latest_status():
         db.row_factory = aiosqlite.Row
         # Main query for overall status (ONLY TODAY)
         query = """
-            SELECT o.id, o.name, o.telegram_group_id,
+            SELECT o.id, o.name, o.telegram_group_id, o.is_required,
                    r.work_mode, r.gpu_status, 
                    r.start_time, r.time_type, r.created_at as last_report_at, r.full_name as reported_by,
                    (SELECT load_power_percent FROM reports 
@@ -570,6 +577,7 @@ async def get_summary_data():
     """
     Извлекает данные для веб-отчетов. 
     Выбирает полные отчеты за сегодня с 01:00 (Киев).
+    Всегда включает все обязательные объекты (is_required=1).
     """
     try:
         from zoneinfo import ZoneInfo
@@ -578,12 +586,15 @@ async def get_summary_data():
     
     KYIV_TZ = ZoneInfo("Europe/Kiev")
     now_kiev = datetime.now(KYIV_TZ)
-    today_str = now_kiev.strftime("%Y-%m-%d")
     
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         
-        # 1. Получаем все отчеты за сегодня и вчера (чтобы отфильтровать по Киевскому времени)
+        # 1. Получаем все обязательные объекты
+        cursor = await db.execute("SELECT * FROM objects WHERE is_required = 1 ORDER BY name")
+        required_objects = await cursor.fetchall()
+        
+        # 2. Получаем все полные отчеты за сегодня и вчера
         query = """
             SELECT r.*, u.full_name as reported_by_name
             FROM reports r
@@ -595,7 +606,7 @@ async def get_summary_data():
         cursor = await db.execute(query)
         rows = await cursor.fetchall()
         
-        # 2. Получаем активные смены
+        # 3. Получаем активные смены
         cursor = await db.execute("""
             SELECT s.object_id, u.full_name, u.phone_number 
             FROM shifts s 
@@ -605,18 +616,10 @@ async def get_summary_data():
         shift_rows = await cursor.fetchall()
         shifts = {r['object_id']: f"{r['full_name']} ({r['phone_number'] or '—'})" for r in shift_rows}
         
-        # 3. Получаем маппинг объектов для сопоставления tc_name и object_id
-        cursor = await db.execute("SELECT id, name FROM objects")
-        obj_rows = await cursor.fetchall()
-        obj_map = {r['name']: r['id'] for r in obj_rows}
-        
-        filtered_results = []
-        seen_objects = set()
-        
+        # 4. Группируем отчеты по объектам (берем самый свежий сегодня после 01:00)
+        object_reports_map = {}
         for row in rows:
             d = dict(row)
-            
-            # Конвертируем создано_ат в Киев
             try:
                 dt_utc = datetime.strptime(d['created_at'], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             except:
@@ -624,28 +627,47 @@ async def get_summary_data():
                 
             dt_kiev = dt_utc.astimezone(KYIV_TZ)
             
-            # Фильтр: сегодня и время >= 01:00
             if dt_kiev.date() == now_kiev.date() and dt_kiev.hour >= 1:
-                # Берем только самый свежий отчет для каждого объекта
                 obj_name_full = d['tc_name']
-                if obj_name_full in seen_objects:
-                    continue
-                seen_objects.add(obj_name_full)
+                if obj_name_full not in object_reports_map:
+                    d['created_at_kiev'] = dt_kiev.strftime("%H:%M")
+                    object_reports_map[obj_name_full] = d
+
+        # 5. Формируем финальный список на основе обязательных объектов
+        final_results = []
+        for obj in required_objects:
+            obj_name = obj['name']
+            short_name = obj_name
+            match = re.search(r'\((.*?)\)', obj_name)
+            if match: short_name = match.group(1)
+
+            # Ищем отчет для этого объекта
+            report = None
+            for rep_name, rep_data in object_reports_map.items():
+                if short_name in rep_name or obj_name in rep_name:
+                    report = rep_data
+                    break
+            
+            if report:
+                report['duty_info'] = shifts.get(obj['id'], "—")
+                final_results.append(report)
+            else:
+                final_results.append({
+                    'id': 0,
+                    'tc_name': obj_name,
+                    'work_mode': "—",
+                    'start_time': "—",
+                    'load_power_percent': "—",
+                    'load_power_kw': "—",
+                    'gpu_status': "ВІДСУТНІЙ ЗВІТ",
+                    'total_mwh': "—",
+                    'total_hours': "—",
+                    'reported_by_name': "—",
+                    'duty_info': shifts.get(obj['id'], "—"),
+                    'created_at_kiev': "—"
+                })
                 
-                # Находим duty_info
-                duty_info = "—"
-                for name, oid in obj_map.items():
-                    if name in obj_name_full:
-                        duty_info = shifts.get(oid, "—")
-                        break
-                
-                d['duty_info'] = duty_info
-                d['created_at_kiev'] = dt_kiev.strftime("%H:%M")
-                filtered_results.append(d)
-                
-        # Сортировка по имени объекта
-        filtered_results.sort(key=lambda x: x['tc_name'])
-        return filtered_results
+        return final_results
 
 
 async def delete_broadcast_from_db(broadcast_id: int):
@@ -827,3 +849,28 @@ async def add_monthly_report(data: dict):
             data['spec_gas'], data['spec_oil']
         ))
         await db.commit()
+
+async def update_object_required(object_id: int, is_required: bool):
+    """Updates the mandatory status of an object."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE objects SET is_required = ? WHERE id = ?", (1 if is_required else 0, object_id))
+        await db.commit()
+
+async def get_required_objects():
+    """Returns all objects marked as mandatory for reporting."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM objects WHERE is_required = 1 ORDER BY name")
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+async def get_active_shift_on_object(object_id: int):
+    """Returns the current active shift on an object, regardless of who is on it."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT s.*, u.full_name, u.phone_number FROM shifts s JOIN users u ON s.user_id = u.user_id WHERE s.object_id = ? AND s.end_time IS NULL LIMIT 1",
+            (object_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None

@@ -54,22 +54,30 @@ async def get_objects_mapping():
         rows = await cursor.fetchall()
         return {r['name']: r['id'] for r in rows}
 
-async def get_today_full_reports():
-    """Извлекает ПОВНЫЕ отчеты, ПОДАННЫЕ сегодня в заданный период по Киеву."""
+async def get_report_data_with_required():
+    """
+    Извлекает данные для отчета на основе списка ОБЯЗАТЕЛЬНЫХ объектов.
+    Если отчет за период не найден, возвращает пустую строку с прочерками.
+    """
     now = datetime.now(KYIV_TZ)
     start_minutes = REPORT_START_HOUR * 60
     end_minutes = REPORT_END_HOUR * 60 + REPORT_END_MINUTE
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        
+        # 1. Получаем все обязательные объекты
+        cursor = await db.execute("SELECT * FROM objects WHERE is_required = 1 ORDER BY name")
+        required_objects = await cursor.fetchall()
+        
+        # 2. Получаем все полные отчеты за вчера и сегодня
+        cursor = await db.execute("SELECT * FROM reports WHERE battery_voltage IS NOT NULL AND date(created_at) >= date('now', '-1 day')")
+        all_reports = await cursor.fetchall()
 
-        query = "SELECT * FROM reports WHERE battery_voltage IS NOT NULL AND date(created_at) >= date('now', '-1 day')"
-        cursor = await db.execute(query)
-        rows = await cursor.fetchall()
-
-        filtered_reports = []
-        for row in rows:
-            created_at_str = row['created_at']
+        # 3. Фильтруем отчеты по периоду (сегодня с 01:00 по 09:30)
+        object_reports_map = {}
+        for r in all_reports:
+            created_at_str = r['created_at']
             try:
                 dt_utc = datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             except:
@@ -80,10 +88,38 @@ async def get_today_full_reports():
             if local_created.date() == now.date():
                 time_in_minutes = local_created.hour * 60 + local_created.minute
                 if start_minutes <= time_in_minutes <= end_minutes:
-                    filtered_reports.append(dict(row))
+                    obj_name_full = r['tc_name']
+                    object_reports_map[obj_name_full] = dict(r)
 
-        filtered_reports.sort(key=lambda x: x['tc_name'])
-        return filtered_reports
+        # 4. Формируем финальный список данных
+        final_data = []
+        for obj in required_objects:
+            obj_name = obj['name']
+            short_name = obj_name
+            match = re.search(r'\((.*?)\)', obj_name)
+            if match:
+                short_name = match.group(1)
+
+            report = None
+            for rep_name, rep_data in object_reports_map.items():
+                if short_name in rep_name or obj_name in rep_name:
+                    report = rep_data
+                    break
+            
+            if report:
+                final_data.append(report)
+            else:
+                final_data.append({
+                    'tc_name': obj_name,
+                    'work_mode': "—",
+                    'start_time': "—",
+                    'load_power_percent': "—",
+                    'load_power_kw': "—",
+                    'gpu_status': "ВІДСУТНІЙ ЗВІТ",
+                    'created_at': None
+                })
+        
+        return final_data
 
 def format_html_table(reports, shifts, obj_map):
     """Создает HTML для сводной таблицы с информацией о дежурных."""
@@ -178,12 +214,12 @@ async def run_summary_report(bot: Bot, target_chat_id: int = None):
     period_str = get_report_period_str()
     logger.info("🚀 Запуск генерації зведеного звіту (з черговими)...")
     
-    reports = await get_today_full_reports()
+    reports = await get_report_data_with_required()
     shifts = await get_active_shifts_dict()
     obj_map = await get_objects_mapping()
     
     if not reports:
-        msg = f"ℹ️ Звітів за період {period_str} не знайдено."
+        msg = f"ℹ️ Обов'язкових об'єктів для звіту не знайдено."
         if target_chat_id:
             await bot.send_message(chat_id=target_chat_id, text=msg)
         return

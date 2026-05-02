@@ -37,6 +37,7 @@ class ObjectInfo(BaseModel):
     current_shift_phone: Optional[str] = None
     telegram_group_id: Optional[int] = None
     is_not_working: bool = False
+    is_required: bool = True
     current_schedule: List[Any] = []
 
 class ReportInfo(BaseModel):

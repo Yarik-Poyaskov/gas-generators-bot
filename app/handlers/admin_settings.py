@@ -103,6 +103,15 @@ async def set_reminder_interval(callback: CallbackQuery, scheduler: AsyncIOSched
     
     await back_to_settings(callback)
 
+@router.callback_query(F.data == "set_alert_time_list")
+async def set_alert_time_list(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(edit_sched_key="alert_checklist_time")
+    await callback.message.edit_text(
+        "🔔 **Час алерта Чек-листа**\n\nОберіть час, коли бот буде перевіряти наявність звітів та надсилати алерти:",
+        reply_markup=get_scheduler_hour_kb()
+    )
+    await callback.answer()
+
 # --- Scheduler Management ---
 
 @router.callback_query(F.data == "open_scheduler_mgmt")
@@ -110,6 +119,7 @@ async def open_scheduler_mgmt(callback: CallbackQuery):
     jobs_info = [
         ("📊 Підсумковий звіт", await get_setting("summary_report_time", "09:40"), "summary_report_time", await get_setting("summary_report_active", "1") == "1"),
         ("📒 Спеціальний звіт", await get_setting("special_summary_report_time", "10:00"), "special_summary_report_time", await get_setting("special_summary_report_active", "1") == "1"),
+        ("🔔 Алерт Чек-листа", await get_setting("alert_checklist_time", "09:20"), "alert_checklist_time", await get_setting("alert_checklist_active", "1") == "1"),
         ("🔔 Нагадування 1", await get_setting("remind_schedules_time", "13:00"), "remind_schedules_time", await get_setting("remind_schedules_active", "1") == "1"),
         ("🔔 Нагадування 2", await get_setting("remind_schedules_2_time", "15:00"), "remind_schedules_2_time", await get_setting("remind_schedules_2_active", "1") == "1"),
         ("🔍 Перевірка 1", await get_setting("check_confirmations_1_time", "14:00"), "check_confirmations_1_time", await get_setting("check_confirmations_1_active", "1") == "1"),
@@ -191,6 +201,7 @@ async def save_sched_time(callback: CallbackQuery, state: FSMContext, scheduler:
     job_map = {
         "summary_report_time": ("job_summary", run_summary_report),
         "special_summary_report_time": ("job_special_summary", run_special_summary_report),
+        "alert_checklist_time": ("job_alert_checklist", None), # Func will be added in bot.py
         "remind_schedules_time": ("job_remind", send_admin_reminders),
         "remind_schedules_2_time": ("job_remind_2", send_admin_reminders),
         "check_confirmations_1_time": ("job_check_1", check_trader_confirmations),

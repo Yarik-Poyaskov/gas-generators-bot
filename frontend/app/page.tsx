@@ -3,10 +3,11 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import GPUCard from '@/components/GPUCard';
+import GPUCardCompact from '@/components/GPUCardCompact';
 import { ObjectInfo } from '@/types';
 import api from '@/lib/api';
 import { authService } from '@/lib/auth-service';
-import { LayoutGrid, List, RefreshCw, Loader2, Search as SearchIcon, SortAsc, ChevronDown } from 'lucide-react';
+import { LayoutGrid, List, RefreshCw, Loader2, Search as SearchIcon, SortAsc, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type SortOption = 'alphabetical' | 'status' | 'power' | 'last_report';
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [newReportId, setNewReportId] = useState<number | null>(null);
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
+  const [cardViewMode, setCardViewMode] = useState<'compact' | 'full'>('compact');
   const [sortBy, setSortBy] = useState<SortOption>('status');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [showSortMenu, setShowSortBy] = useState(false);
@@ -101,7 +103,12 @@ export default function Dashboard() {
   useEffect(() => {
     const savedView = localStorage.getItem('dashboard_view_type');
     if (savedView === 'grid' || savedView === 'list') {
-      setViewType(savedView);
+      setViewType(savedView as 'grid' | 'list');
+    }
+
+    const savedCardMode = localStorage.getItem('dashboard_card_mode');
+    if (savedCardMode === 'compact' || savedCardMode === 'full') {
+      setCardViewMode(savedCardMode as 'compact' | 'full');
     }
     
     if (!localStorage.getItem('access_token')) {
@@ -301,9 +308,24 @@ export default function Dashboard() {
             <button 
               onClick={() => handleViewChange(viewType === 'grid' ? 'list' : 'grid')}
               className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+              title={viewType === 'grid' ? 'Список' : 'Плитка'}
             >
               {viewType === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
             </button>
+
+            {viewType === 'grid' && (
+              <button 
+                onClick={() => {
+                  const nextMode = cardViewMode === 'compact' ? 'full' : 'compact';
+                  setCardViewMode(nextMode);
+                  localStorage.setItem('dashboard_card_mode', nextMode);
+                }}
+                className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+                title={cardViewMode === 'compact' ? 'Повний вигляд' : 'Компактний вигляд'}
+              >
+                {cardViewMode === 'compact' ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+              </button>
+            )}
 
             <button 
               onClick={() => {setLoading(true); fetchObjects();}}
@@ -338,11 +360,19 @@ export default function Dashboard() {
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 [.sidebar-collapsed_&]:lg:grid-cols-4 [.sidebar-collapsed_&]:xl:grid-cols-5 [.sidebar-collapsed_&]:2xl:grid-cols-6 gap-6"
             >
               {sortedObjects.map((obj) => (
-                <GPUCard 
-                  key={obj.id} 
-                  data={obj} 
-                  isNew={newReportId === obj.id}
-                />
+                cardViewMode === 'compact' ? (
+                  <GPUCardCompact 
+                    key={obj.id} 
+                    data={obj} 
+                    isNew={newReportId === obj.id}
+                  />
+                ) : (
+                  <GPUCard 
+                    key={obj.id} 
+                    data={obj} 
+                    isNew={newReportId === obj.id}
+                  />
+                )
               ))}
             </motion.div>
           ) : (

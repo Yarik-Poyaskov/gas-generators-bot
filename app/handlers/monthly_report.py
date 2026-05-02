@@ -1,6 +1,6 @@
 import re
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiogram import Router, F, Bot, html
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
@@ -20,13 +20,22 @@ from app.config import config
 
 router = Router()
 
-def get_current_month_name_uk():
+def get_report_period_uk():
+    """Returns (month_name, year) for the PREVIOUS month."""
+    now = datetime.now()
+    # Go back to the last day of previous month
+    first_day_this_month = now.replace(day=1)
+    last_day_prev_month = first_day_this_month - timedelta(days=1)
+    
     months = {
         1: "Січень", 2: "Лютий", 3: "Березень", 4: "Квітень",
         5: "Травень", 6: "Червень", 7: "Липень", 8: "Серпень",
         9: "Вересень", 10: "Жовтень", 11: "Листопад", 12: "Грудень"
     }
-    return months[datetime.now().month]
+    
+    month_name = months[last_day_prev_month.month]
+    year = last_day_prev_month.year
+    return month_name, year
 
 @router.message(F.text == "📊Звіт показників роботи ГПУ за місяць")
 async def cmd_monthly_report_start(message: Message, state: FSMContext):
@@ -50,13 +59,15 @@ async def cmd_monthly_report_start(message: Message, state: FSMContext):
         await message.answer("За вами не закріплено жодного об'єкта.")
         return
 
+    month_name, year = get_report_period_uk()
+
     if len(user_objs) == 1:
         obj = user_objs[0]
         await state.update_data(object_id=obj['id'], tc_name=obj['name'])
         await state.set_state(MonthlyReportState.energy_mwh)
         await message.answer(
             f"📊 <b>Місячний звіт: {html.quote(obj['name'])}</b>\n"
-            f"Період: {get_current_month_name_uk()} {datetime.now().year}\n\n"
+            f"Період: {month_name} {year}\n\n"
             f"1️⃣ Введіть кількість згенерованої енергії за місяць (МВт*год):",
             reply_markup=get_simple_cancel_kb(),
             parse_mode="HTML"
@@ -91,9 +102,11 @@ async def handle_object_selection(callback: CallbackQuery, state: FSMContext):
     await state.update_data(object_id=obj_id, tc_name=obj['name'])
     await state.set_state(MonthlyReportState.energy_mwh)
     
+    month_name, year = get_report_period_uk()
+    
     await callback.message.edit_text(
         f"📊 <b>Місячний звіт: {html.quote(obj['name'])}</b>\n"
-        f"Період: {get_current_month_name_uk()} {datetime.now().year}\n\n"
+        f"Період: {month_name} {year}\n\n"
         f"1️⃣ Введіть кількість згенерованої енергії за місяць (МВт*год):",
         parse_mode="HTML"
     )
@@ -181,19 +194,29 @@ async def show_monthly_preview(message: Message, state: FSMContext):
     spec_gas = gas_total / energy if energy > 0 else 0
     spec_oil = oil_total / energy if energy > 0 else 0
     
+    month_name, year = get_report_period_uk()
+    # Find month index for DB
+    months_map = {
+        "Січень": 1, "Лютий": 2, "Березень": 3, "Квітень": 4,
+        "Травень": 5, "Червень": 6, "Липень": 7, "Серпень": 8,
+        "Вересень": 9, "Жовтень": 10, "Листопад": 11, "Грудень": 12
+    }
+    month_idx = months_map[month_name]
+
     await state.update_data(
         gas_total=round(gas_total, 2),
         oil_total=round(oil_total, 2),
         spec_gas=round(spec_gas, 6),
         spec_oil=round(spec_oil, 6),
-        report_month=datetime.now().month,
-        report_year=datetime.now().year
+        report_month=month_idx,
+        report_year=year,
+        report_period_str=f"{month_name} {year}"
     )
 
     preview = (
         f"📊 <b>ПОПЕРЕДНІЙ ПЕРЕГЛЯД ЗВІТУ</b>\n"
         f"Об'єкт: {html.quote(data['tc_name'])}\n"
-        f"Період: {get_current_month_name_uk()} {datetime.now().year}\n\n"
+        f"Період: {month_name} {year}\n\n"
         f"1. Енергія: <code>{data['energy_mwh']}</code> МВт*год\n"
         f"2. Спожито газу: <code>{round(gas_total, 2)}</code> м³\n"
         f"   (Показники: {data['gas_start']} -> {data['gas_end']}, коєф: {data['gas_coef']})\n"
@@ -225,7 +248,7 @@ async def handle_monthly_confirm(callback: CallbackQuery, state: FSMContext, bot
     report_msg = (
         f"📈 <b>МІСЯЧНИЙ ЗВІТ РОБОТИ ГПУ</b>\n"
         f"🏢 Об'єкт: <b>{html.quote(data['tc_name'])}</b>\n"
-        f"📅 Період: {get_current_month_name_uk()} {data['report_year']}\n"
+        f"📅 Період: {data['report_period_str']}\n"
         f"👤 Подав: {html.quote(user_data['full_name'] if user_data else callback.from_user.full_name)}\n"
         f"────────────────────\n"
         f"1️⃣ Згенеровано енергії: <b>{data['energy_mwh']}</b> МВт*год\n"

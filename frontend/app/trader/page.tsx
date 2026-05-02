@@ -150,7 +150,7 @@ export default function TraderPortal() {
 
           <div className="flex items-center gap-3">
              <input type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)}
-                className="bg-slate-900 text-white rounded-xl px-5 py-2.5 text-sm font-black outline-none focus:ring-2 ring-amber-500 transition-all cursor-pointer"
+                className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl px-5 py-2.5 text-sm font-black outline-none focus:ring-2 ring-amber-500 transition-all cursor-pointer border border-slate-200 dark:border-white/5"
               />
              <button onClick={() => setShowInput(!showInput)}
                 className="bg-[#004899] text-white px-6 py-2.5 rounded-xl text-sm font-black hover:bg-[#003675] active:scale-95 transition-all shadow-xl shadow-blue-500/10"
@@ -237,7 +237,7 @@ export default function TraderPortal() {
                               const startH = parseInt(i.start.split(':')[0]);
                               return (
                                 <div key={idx} 
-                                  className="absolute text-[11px] font-black text-slate-300 dark:text-slate-700 font-mono tracking-tighter"
+                                  className="absolute text-[13px] font-black text-slate-900 dark:text-white font-mono tracking-tighter"
                                   style={{ left: `${(startH / 24) * 100}%` }}
                                 >
                                   {i.start}-{i.end}
@@ -251,7 +251,7 @@ export default function TraderPortal() {
                     {/* 3. Detailed Stats (Large Font) */}
                     <div className="w-full md:w-56 shrink-0 md:text-right">
                        {sched.is_not_working ? (
-                         <span className="text-[12px] font-black text-rose-500 uppercase tracking-[0.2em] bg-rose-50 dark:bg-rose-900/10 px-4 py-1.5 rounded-xl border border-rose-500/20">Відключено</span>
+                         <span className="text-[12px] font-black text-rose-500 uppercase tracking-[0.2em] bg-rose-50 dark:bg-rose-900/10 px-4 py-1.5 rounded-xl border border-rose-500/20">Не працює</span>
                        ) : (
                          <div className="flex flex-wrap md:justify-end gap-2">
                             {intervals.map((i:any, idx:number) => (

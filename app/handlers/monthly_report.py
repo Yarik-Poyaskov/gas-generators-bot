@@ -13,7 +13,7 @@ from app.keyboards.reply import (
     get_main_menu_keyboard, get_simple_cancel_kb, get_cancel_keyboard
 )
 from app.keyboards.inline import (
-    get_objects_inline_keyboard, get_confirmation_kb
+    get_monthly_objects_kb, get_confirmation_kb
 )
 from app.states.monthly_report import MonthlyReportState
 from app.config import config
@@ -65,10 +65,25 @@ async def cmd_monthly_report_start(message: Message, state: FSMContext):
         await state.set_state(MonthlyReportState.selecting_object)
         await message.answer(
             "Оберіть об'єкт для місячного звіту:",
-            reply_markup=get_objects_inline_keyboard(user_objs, 0, 10)
+            reply_markup=get_monthly_objects_kb(user_objs, 0, 10)
         )
 
-@router.callback_query(MonthlyReportState.selecting_object, F.data.startswith("manage_obj:"))
+@router.callback_query(MonthlyReportState.selecting_object, F.data.startswith("monthly_objs_page:"))
+async def handle_monthly_objs_pagination(callback: CallbackQuery, state: FSMContext):
+    page = int(callback.data.split(":")[1])
+    user_id = callback.from_user.id
+    is_admin = user_id in config.admin_ids
+    
+    user_objs = await get_user_objects_by_tg_id(user_id)
+    if not user_objs and is_admin:
+        user_objs = await get_all_objects()
+        
+    await callback.message.edit_reply_markup(
+        reply_markup=get_monthly_objects_kb(user_objs, page, 10)
+    )
+    await callback.answer()
+
+@router.callback_query(MonthlyReportState.selecting_object, F.data.startswith("monthly_obj:"))
 async def handle_object_selection(callback: CallbackQuery, state: FSMContext):
     obj_id = int(callback.data.split(":")[1])
     obj = await get_object_by_id(obj_id)
@@ -161,9 +176,10 @@ async def show_monthly_preview(message: Message, state: FSMContext):
     gas_total = (data['gas_end'] - data['gas_start']) * data['gas_coef']
     oil_total = (data['oil_start'] + data['oil_added']) - data['oil_end']
     
-    # Avoid division by zero
-    spec_gas = data['energy_mwh'] / gas_total if gas_total > 0 else 0
-    spec_oil = data['energy_mwh'] / oil_total if oil_total > 0 else 0
+    # Specific consumption (Resource / Energy)
+    energy = data['energy_mwh']
+    spec_gas = gas_total / energy if energy > 0 else 0
+    spec_oil = oil_total / energy if energy > 0 else 0
     
     await state.update_data(
         gas_total=round(gas_total, 2),
@@ -183,8 +199,8 @@ async def show_monthly_preview(message: Message, state: FSMContext):
         f"   (Показники: {data['gas_start']} -> {data['gas_end']}, коєф: {data['gas_coef']})\n"
         f"3. Олива на угар: <code>{round(oil_total, 2)}</code> л\n"
         f"   (Показники: {data['oil_start']} + долито {data['oil_added']} - {data['oil_end']})\n\n"
-        f"4. Питома витр. газу: <code>{round(spec_gas, 6)}</code> МВт*год/м³\n"
-        f"5. Питома витр. оливи: <code>{round(spec_oil, 6)}</code> МВт*год/л\n\n"
+        f"4. Питома витрата газу: <code>{round(spec_gas, 6)}</code> м³/МВт*год\n"
+        f"5. Питома витрата оливи: <code>{round(spec_oil, 6)}</code> л/МВт*год\n\n"
         f"Зберегти та надіслати звіт?"
     )
 
@@ -215,8 +231,8 @@ async def handle_monthly_confirm(callback: CallbackQuery, state: FSMContext, bot
         f"1️⃣ Згенеровано енергії: <b>{data['energy_mwh']}</b> МВт*год\n"
         f"2️⃣ Спожито газу за місяць: <b>{data['gas_total']}</b> м³\n"
         f"3️⃣ Олива на угар за місяць: <b>{data['oil_total']}</b> л\n"
-        f"4️⃣ Питома витрата газу: <b>{data['spec_gas']}</b> МВт*год/м³\n"
-        f"5️⃣ Питома витрата оливи: <b>{data['spec_oil']}</b> МВт*год/л\n"
+        f"4️⃣ Питома витрата газу: <b>{data['spec_gas']}</b> м³/МВт*год\n"
+        f"5️⃣ Питома витрата оливи: <b>{data['spec_oil']}</b> л/МВт*год\n"
         f"────────────────────\n"
         f"✅ Звіт прийнято."
     )

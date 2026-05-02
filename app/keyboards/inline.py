@@ -231,7 +231,7 @@ def get_users_inline_keyboard(users: list, page: int, users_per_page: int) -> In
 
 
 def get_objects_inline_keyboard(objects: list, page: int, per_page: int) -> InlineKeyboardMarkup:
-    """Generates an inline keyboard for objects list with pagination."""
+    """Generates an inline keyboard for objects list with pagination (used in Admin)."""
     start_idx = page * per_page
     end_idx = start_idx + per_page
     current_objects = objects[start_idx:end_idx]
@@ -259,6 +259,34 @@ def get_objects_inline_keyboard(objects: list, page: int, per_page: int) -> Inli
     if pagination_row:
         keyboard.append(pagination_row)
         
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_monthly_objects_kb(objects: list, page: int, per_page: int) -> InlineKeyboardMarkup:
+    """Generates an inline keyboard for objects list for monthly reports."""
+    start_idx = page * per_page
+    end_idx = start_idx + per_page
+    current_objects = objects[start_idx:end_idx]
+    
+    keyboard = []
+    for obj in current_objects:
+        keyboard.append([InlineKeyboardButton(text=f"📊 {obj['name']}", callback_data=f"monthly_obj:{obj['id']}")])
+    
+    # Pagination buttons
+    pagination_row = []
+    if page > 0:
+        pagination_row.append(InlineKeyboardButton(text="⬅️", callback_data=f"monthly_objs_page:{page-1}"))
+    
+    total_pages = (len(objects) + per_page - 1) // per_page
+    if total_pages > 1:
+        pagination_row.append(InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="ignore"))
+    
+    if end_idx < len(objects):
+        pagination_row.append(InlineKeyboardButton(text="➡️", callback_data=f"monthly_objs_page:{page+1}"))
+    
+    if pagination_row:
+        keyboard.append(pagination_row)
+        
+    keyboard.append([InlineKeyboardButton(text="❌ Відміна", callback_data="cancel_monthly")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_groups_selection_kb(groups: list, object_id: int) -> InlineKeyboardMarkup:

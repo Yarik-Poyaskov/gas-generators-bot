@@ -29,7 +29,9 @@ def normalize_phone(phone: str) -> str:
 # This handler intercepts 'Відміна' or main menu buttons to cancel any process
 @cancel_router.message(lambda m: m.text and (m.text.casefold() == "відміна" or m.text in [
     "Графік роботи ГПУ", "Подати чек-лист", "Статус ГПУ", 
-    "Адмін панель", "👤 Керування змінами", "📊Звіт показників роботи ГПУ за місяць"
+    "Адмін панель", "👤 Керування змінами", 
+    "📊Звіт показників роботи ГПУ за місяць(різниця показників газу)",
+    "📊Звіт показників роботи ГПУ за місяць(показники газового коректора)"
 ]))
 @cancel_router.message(Command("cancel"))
 async def global_cancel(message: Message, state: FSMContext):
@@ -45,7 +47,9 @@ async def global_cancel(message: Message, state: FSMContext):
     # If it was a main menu button, we want to clear state and redirect
     if message.text in [
         "Графік роботи ГПУ", "Подати чек-лист", "Статус ГПУ", 
-        "Адмін панель", "👤 Керування змінами", "📊Звіт показників роботи ГПУ за місяць"
+        "Адмін панель", "👤 Керування змінами", 
+        "📊Звіт показників роботи ГПУ за місяць(різниця показників газу)",
+        "📊Звіт показників роботи ГПУ за місяць(показники газового коректора)"
     ]:
         await state.clear()
         if message.text == "Адмін панель":
@@ -56,7 +60,10 @@ async def global_cancel(message: Message, state: FSMContext):
             return await start_short_report(message, state)
         elif message.text == "Подати чек-лист":
             return await start_report(message, state)
-        elif message.text == "📊Звіт показників роботи ГПУ за місяць":
+        elif message.text == "📊Звіт показників роботи ГПУ за місяць(різниця показників газу)":
+            from app.handlers.monthly_report import cmd_monthly_report_start
+            return await cmd_monthly_report_start(message, state)
+        elif message.text == "📊Звіт показників роботи ГПУ за місяць(показники газового коректора)":
             from app.handlers.monthly_report import cmd_monthly_report_start
             return await cmd_monthly_report_start(message, state)
         elif message.text == "Графік роботи ГПУ":

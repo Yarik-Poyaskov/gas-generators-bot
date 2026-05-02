@@ -37,7 +37,10 @@ def get_report_period_uk():
     year = last_day_prev_month.year
     return month_name, year
 
-@router.message(F.text == "📊Звіт показників роботи ГПУ за місяць")
+@router.message(F.text.in_([
+    "📊Звіт показників роботи ГПУ за місяць(різниця показників газу)",
+    "📊Звіт показників роботи ГПУ за місяць(показники газового коректора)"
+]))
 async def cmd_monthly_report_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user_data = await get_user(user_id)
@@ -49,6 +52,10 @@ async def cmd_monthly_report_start(message: Message, state: FSMContext):
 
     # Clear state and start
     await state.clear()
+    
+    # Save report type
+    report_type = "difference" if "різниця" in message.text else "corrector"
+    await state.update_data(report_type=report_type)
     
     # Get user objects
     user_objs = await get_user_objects_by_tg_id(user_id)
@@ -118,8 +125,24 @@ async def set_energy(message: Message, state: FSMContext):
     try:
         val = float(message.text.replace(",", "."))
         await state.update_data(energy_mwh=val)
-        await state.set_state(MonthlyReportState.gas_start)
-        await message.answer("2.а) Показник газового лічильника на 1-ше число МИНУЛОГО місяця:", reply_markup=get_simple_cancel_kb())
+        data = await state.get_data()
+        
+        if data.get('report_type') == 'corrector':
+            await state.set_state(MonthlyReportState.gas_corrector_total)
+            await message.answer("2. Показники газового коректора за місяць (м³):", reply_markup=get_simple_cancel_kb())
+        else:
+            await state.set_state(MonthlyReportState.gas_start)
+            await message.answer("2.а) Показник газового лічильника на 1-ше число МИНУЛОГО місяця:", reply_markup=get_simple_cancel_kb())
+    except ValueError:
+        await message.answer("Будь ласка, введіть число.")
+
+@router.message(MonthlyReportState.gas_corrector_total)
+async def set_gas_corrector_total(message: Message, state: FSMContext):
+    try:
+        val = float(message.text.replace(",", "."))
+        await state.update_data(gas_corrector_total=val)
+        await state.set_state(MonthlyReportState.oil_start)
+        await message.answer("3.а) Рівень оливи в баці на 1-ше число МИНУЛОГО місяця (л):", reply_markup=get_simple_cancel_kb())
     except ValueError:
         await message.answer("Будь ласка, введіть число.")
 
@@ -184,10 +207,15 @@ async def set_oil_end(message: Message, state: FSMContext):
 
 async def show_monthly_preview(message: Message, state: FSMContext):
     data = await state.get_data()
+    report_type = data.get('report_type', 'difference')
     
     # Calculations
-    gas_total = (data['gas_end'] - data['gas_start']) * data['gas_coef']
-    oil_total = (data['oil_start'] + data['oil_added']) - data['oil_end']
+    if report_type == 'corrector':
+        gas_total = data.get('gas_corrector_total', 0)
+    else:
+        gas_total = (data.get('gas_end', 0) - data.get('gas_start', 0)) * data.get('gas_coef', 1)
+        
+    oil_total = (data.get('oil_start', 0) + data.get('oil_added', 0)) - data.get('oil_end', 0)
     
     # Specific consumption (Resource / Energy)
     energy = data['energy_mwh']
@@ -206,23 +234,30 @@ async def show_monthly_preview(message: Message, state: FSMContext):
     await state.update_data(
         gas_total=round(gas_total, 2),
         oil_total=round(oil_total, 2),
-        spec_gas=round(spec_gas, 6),
+        spec_gas=int(round(spec_gas)),
         spec_oil=round(spec_oil, 6),
         report_month=month_idx,
         report_year=year,
         report_period_str=f"{month_name} {year}"
     )
 
+    if report_type == 'corrector':
+        gas_info = f"2. Спожито газу (коректор): <code>{round(gas_total, 2)}</code> м³\n"
+    else:
+        gas_info = (
+            f"2. Спожито газу: <code>{round(gas_total, 2)}</code> м³\n"
+            f"   (Показники: {data['gas_start']} -> {data['gas_end']}, коєф: {data['gas_coef']})\n"
+        )
+
     preview = (
         f"📊 <b>ПОПЕРЕДНІЙ ПЕРЕГЛЯД ЗВІТУ</b>\n"
         f"Об'єкт: {html.quote(data['tc_name'])}\n"
         f"Період: {month_name} {year}\n\n"
         f"1. Енергія: <code>{data['energy_mwh']}</code> МВт*год\n"
-        f"2. Спожито газу: <code>{round(gas_total, 2)}</code> м³\n"
-        f"   (Показники: {data['gas_start']} -> {data['gas_end']}, коєф: {data['gas_coef']})\n"
+        f"{gas_info}"
         f"3. Олива на угар: <code>{round(oil_total, 2)}</code> л\n"
         f"   (Показники: {data['oil_start']} + долито {data['oil_added']} - {data['oil_end']})\n\n"
-        f"4. Питома витрата газу: <code>{round(spec_gas, 6)}</code> м³/МВт*год\n"
+        f"4. Питома витрата газу: <code>{int(round(spec_gas))}</code> м³/МВт*год\n"
         f"5. Питома витрата оливи: <code>{round(spec_oil, 6)}</code> л/МВт*год\n\n"
         f"Зберегти та надіслати звіт?"
     )
@@ -242,6 +277,13 @@ async def handle_monthly_confirm(callback: CallbackQuery, state: FSMContext, bot
     data['user_id'] = user_id
     
     # Save to DB
+    # Ensure all gas keys exist for DB even if using corrector type
+    if data.get('report_type') == 'corrector':
+        data['gas_start'] = 0
+        data['gas_end'] = 0
+        data['gas_coef'] = 0
+        data['gas_total'] = data.get('gas_corrector_total', 0)
+
     await add_monthly_report(data)
     
     # Format final message for group

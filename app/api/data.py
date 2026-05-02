@@ -84,6 +84,13 @@ async def parse_schedule_text(payload: dict, current_user: dict = Depends(requir
         "data": parsed_data
     }
 
+@router.get("/trader/schedules")
+async def get_trader_schedules(date: str, current_user: dict = Depends(get_current_user)):
+    """Возвращает все графики на указанную дату."""
+    from app.db.database import get_all_schedules_by_date
+    schedules = await get_all_schedules_by_date(date)
+    return schedules
+
 @router.post("/trader/publish")
 async def publish_schedule(payload: TraderPublishRequest, current_user: dict = Depends(require_role(["admin", "trader"]))):
     """Saves and publishes schedules to Telegram groups from the Web interface."""

@@ -473,6 +473,22 @@ async def has_any_schedule(date_str: str) -> bool:
         cursor = await db.execute("SELECT 1 FROM trader_schedules WHERE target_date = ? LIMIT 1", (date_str,))
         return await cursor.fetchone() is not None
 
+async def get_all_schedules_by_date(date_str: str):
+    """Возвращает все графики на определенную дату с деталями интервалов."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        query = """
+            SELECT s.*, o.name as tc_name, u.full_name as trader_name 
+            FROM trader_schedules s 
+            JOIN objects o ON s.object_id = o.id 
+            JOIN users u ON s.trader_id = u.user_id 
+            WHERE s.target_date = ?
+            ORDER BY o.name
+        """
+        cursor = await db.execute(query, (date_str,))
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
 # --- Trader Announcement Functions ---
 
 async def add_trader_announcement(trader_id: int, target_date: str, chat_id: int, message_id: int, object_id: Optional[int] = None, message_type: str = 'announcement'):
@@ -843,10 +859,12 @@ async def add_monthly_report(data: dict):
                 spec_gas, spec_oil
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            data['object_id'], data['user_id'], data['report_month'], data['report_year'],
-            data['energy_mwh'], data['gas_start'], data['gas_end'], data['gas_coef'], data['gas_total'],
-            data['oil_start'], data['oil_end'], data['oil_added'], data['oil_total'],
-            data['spec_gas'], data['spec_oil']
+            data.get('object_id'), data.get('user_id'), data.get('report_month'), data.get('report_year'),
+            data.get('energy_mwh', 0), 
+            data.get('gas_start', 0), data.get('gas_end', 0), data.get('gas_coef', 0), 
+            data.get('gas_total', 0),
+            data.get('oil_start', 0), data.get('oil_end', 0), data.get('oil_added', 0), data.get('oil_total', 0),
+            data.get('spec_gas', 0), data.get('spec_oil', 0)
         ))
         await db.commit()
 

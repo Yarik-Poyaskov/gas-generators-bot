@@ -13,7 +13,8 @@ def get_main_menu_keyboard(is_admin: bool = False, role: str = 'user') -> ReplyK
         keyboard.append([KeyboardButton(text="👤 Керування змінами")])
         keyboard.append([KeyboardButton(text="Подати чек-лист")])
         keyboard.append([KeyboardButton(text="Статус ГПУ")])
-        keyboard.append([KeyboardButton(text="📊Звіт показників роботи ГПУ за місяць")])
+        keyboard.append([KeyboardButton(text="📊Звіт показників роботи ГПУ за місяць(різниця показників газу)")])
+        keyboard.append([KeyboardButton(text="📊Звіт показників роботи ГПУ за місяць(показники газового коректора)")])
         
     # Специфические кнопки админа
     if is_admin:

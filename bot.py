@@ -13,7 +13,7 @@ from app.db.database import init_db, get_setting
 from app.handlers import (
     common, report, admin, trader, schedule_confirm, 
     groups, admin_edit, admin_settings, trader_parser, admin_broadcast,
-    shifts, monthly_report
+    shifts, monthly_report, reminder_interactive
 )
 from app.middlewares.logging import ActionLoggingMiddleware
 from send_summary_report import run_summary_report
@@ -42,6 +42,7 @@ async def main():
     dp.include_router(groups.router)
     dp.include_router(trader.router)
     dp.include_router(schedule_confirm.router)
+    dp.include_router(reminder_interactive.router)
     dp.include_router(report.router)
     dp.include_router(admin_edit.router)
     dp.include_router(admin_settings.router)

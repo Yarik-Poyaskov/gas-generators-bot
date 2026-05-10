@@ -657,7 +657,7 @@ def get_settings_keyboard(trader_pm: bool, trader_groups: bool, hide_not_working
             ],
             [
                 InlineKeyboardButton(
-                    text=f"⏱ Перевірка смен: {reminder_interval}хв",
+                    text=f"⏱ Перевірка змін: {reminder_interval}хв",
                     callback_data="set_reminder_interval_list"
                 )
             ],

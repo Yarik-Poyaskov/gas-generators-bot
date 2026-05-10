@@ -146,6 +146,8 @@ async def check_and_send_report_reminders(bot: Bot):
                     end_time_str, 'stop', margin_mins, now_kyiv, today_db
                 )
 
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 async def process_event_reminder(bot, schedule_id, group_id, obj_name, event_time_str, event_type, margin, now_kyiv, today_db):
     """Checks and sends a specific reminder for a start or stop event."""
     try:
@@ -179,8 +181,16 @@ async def process_event_reminder(bot, schedule_id, group_id, obj_name, event_tim
                 f"☝️ Будь ласка, заповніть статус у боті!"
             )
             
+            # Add Interactive Buttons
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="💬 Залишити коментар", callback_data=f"remind_comment:{schedule_id}:{event_type}:{event_time_str}"),
+                    InlineKeyboardButton(text="🔇 Ігнорувати", callback_data=f"remind_ignore:{schedule_id}:{event_type}:{event_time_str}")
+                ]
+            ])
+            
             try:
-                await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML")
+                await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML", reply_markup=kb)
                 await log_sent_reminder(schedule_id, event_type, event_time_str)
                 logger.info(f"Sent {event_type} reminder for {obj_name} (scheduled {event_time_str})")
             except Exception as e:

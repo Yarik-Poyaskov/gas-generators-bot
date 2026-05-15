@@ -40,7 +40,7 @@ def get_report_period_uk():
 @router.message(F.text.in_([
     "📊Звіт показників роботи ГПУ за місяць(різниця показників газу)",
     "📊Звіт показників роботи ГПУ за місяць(показники газового коректора)"
-]))
+]), F.chat.type == "private")
 async def cmd_monthly_report_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user_data = await get_user(user_id)

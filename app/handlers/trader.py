@@ -20,7 +20,7 @@ from app.states.trader import TraderScheduleState
 
 router = Router()
 
-@router.message(F.text == "Графік роботи ГПУ")
+@router.message(F.text == "Графік роботи ГПУ", F.chat.type == "private")
 async def cmd_trader_schedule_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user_data = await get_user(user_id)

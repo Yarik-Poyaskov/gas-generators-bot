@@ -35,7 +35,7 @@ def normalize_phone(phone: str) -> str:
         return '38' + digits
     return digits
 
-@router.message(F.text == "Адмін панель")
+@router.message(F.text == "Адмін панель", F.chat.type == "private")
 async def cmd_admin_panel(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(

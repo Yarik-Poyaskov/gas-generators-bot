@@ -32,8 +32,8 @@ def normalize_phone(phone: str) -> str:
     "Адмін панель", "👤 Керування змінами", 
     "📊Звіт показників роботи ГПУ за місяць(різниця показників газу)",
     "📊Звіт показників роботи ГПУ за місяць(показники газового коректора)"
-]))
-@cancel_router.message(Command("cancel"))
+]), F.chat.type == "private")
+@cancel_router.message(Command("cancel"), F.chat.type == "private")
 async def global_cancel(message: Message, state: FSMContext):
     """
     Глобальний обробник скасування будь-якої дії.

@@ -4,11 +4,11 @@ def get_main_menu_keyboard(is_admin: bool = False, role: str = 'user') -> ReplyK
     """Returns a persistent keyboard for the main menu based on user role."""
     keyboard = []
     
-    # Кнопка графиков ГПУ (для трейдеров и админов)
+    # Кнопка графіків ГПУ (для трейдерів та адмінів)
     if role == 'trader' or is_admin:
         keyboard.append([KeyboardButton(text="Графік роботи ГПУ")])
     
-    # Кнопки для обычных пользователей и админов
+    # Кнопки для звичайних користувачів та адмінів
     if role != 'trader':
         keyboard.append([KeyboardButton(text="👤 Керування змінами")])
         keyboard.append([KeyboardButton(text="Подати чек-лист")])
@@ -16,7 +16,7 @@ def get_main_menu_keyboard(is_admin: bool = False, role: str = 'user') -> ReplyK
         keyboard.append([KeyboardButton(text="📊Звіт показників роботи ГПУ за місяць(різниця показників газу)")])
         keyboard.append([KeyboardButton(text="📊Звіт показників роботи ГПУ за місяць(показники газового коректора)")])
         
-    # Специфические кнопки админа
+    # Специфічні кнопки адміна
     if is_admin:
         keyboard.append([KeyboardButton(text="Адмін панель")])
     

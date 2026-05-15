@@ -18,7 +18,8 @@ from app.db.database import (
     get_setting,
     get_required_objects,
     get_active_shift_on_object,
-    get_reports_by_date
+    get_reports_by_date,
+    get_schedule_by_object_and_date # Добавляем импорт для проверки стыковки суток
 )
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,7 @@ async def check_and_send_report_reminders(bot: Bot):
             continue
 
         obj_name = s['tc_name']
+        obj_id = s['object_id'] # Передаем ID объекта для проверки непрерывности
         
         for interval in intervals:
             start_time_str = interval.get('start')
@@ -136,24 +138,73 @@ async def check_and_send_report_reminders(bot: Bot):
             if start_time_str:
                 await process_event_reminder(
                     bot, s['schedule_id'], group_id, obj_name, 
-                    start_time_str, 'start', margin_mins, now_kyiv, today_db
+                    start_time_str, 'start', margin_mins, now_kyiv, today_db, obj_id
                 )
             
             # Check Stop Reminder
             if end_time_str:
                 await process_event_reminder(
                     bot, s['schedule_id'], group_id, obj_name, 
-                    end_time_str, 'stop', margin_mins, now_kyiv, today_db
+                    end_time_str, 'stop', margin_mins, now_kyiv, today_db, obj_id
                 )
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-async def process_event_reminder(bot, schedule_id, group_id, obj_name, event_time_str, event_type, margin, now_kyiv, today_db):
+async def process_event_reminder(bot, schedule_id, group_id, obj_name, event_time_str, event_type, margin, now_kyiv, today_db, object_id):
     """Checks and sends a specific reminder for a start or stop event."""
     try:
+        # --- ЛОГИКА ПРОВЕРКИ НЕПРЕРЫВНОСТИ (СТЫК СУТОК) ---
+        
+        # 1. Если ЗАПУСК в 00:00 - проверяем, не работала ли машина вчера до 24:00
+        if event_type == 'start' and event_time_str in ['00:00', '00:05']:
+            yesterday_db = (now_kyiv - timedelta(days=1)).strftime("%Y-%m-%d")
+            yesterday_sched = await get_schedule_by_object_and_date(object_id, yesterday_db)
+            
+            if yesterday_sched and not yesterday_sched.get('is_not_working'):
+                try:
+                    y_intervals = json.loads(yesterday_sched['schedule_json'])
+                    is_continuation = False
+                    for inv in y_intervals:
+                        if inv.get('end') in ['24:00', '00:00', '23:59']:
+                            is_continuation = True
+                            break
+                    
+                    if is_continuation:
+                        logger.info(f"Skipping midnight start reminder for {obj_name} (continuation from yesterday)")
+                        return
+                except:
+                    pass
+
+        # 2. Если ОСТАНОВКА в 24:00 - проверяем, не работает ли машина завтра с 00:00
+        if event_type == 'stop' and event_time_str in ['24:00', '00:00', '23:59']:
+            tomorrow_db = (now_kyiv + timedelta(days=1)).strftime("%Y-%m-%d")
+            tomorrow_sched = await get_schedule_by_object_and_date(object_id, tomorrow_db)
+            
+            if tomorrow_sched and not tomorrow_sched.get('is_not_working'):
+                try:
+                    t_intervals = json.loads(tomorrow_sched['schedule_json'])
+                    is_continuation = False
+                    for inv in t_intervals:
+                        if inv.get('start') in ['00:00', '00:05']:
+                            is_continuation = True
+                            break
+                            
+                    if is_continuation:
+                        logger.info(f"Skipping midnight stop reminder for {obj_name} (continuation to tomorrow)")
+                        return
+                except:
+                    pass
+        # --------------------------------------------------
+
         # Parse event time (HH:MM)
         event_h, event_m = map(int, event_time_str.split(':'))
-        event_dt = now_kyiv.replace(hour=event_h, minute=event_m, second=0, microsecond=0)
+        
+        # Handle 24:00 correctly for datetime (Python supports 0..23)
+        if event_h == 24:
+            # 24:00 is 00:00 of the NEXT day
+            event_dt = (now_kyiv + timedelta(days=1)).replace(hour=0, minute=event_m, second=0, microsecond=0)
+        else:
+            event_dt = now_kyiv.replace(hour=event_h, minute=event_m, second=0, microsecond=0)
         
         # We only remind if Event_Time + Margin has passed, but not more than 2 hours ago (to avoid spamming old events)
         reminder_threshold = event_dt + timedelta(minutes=margin)

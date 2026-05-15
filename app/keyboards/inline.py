@@ -558,7 +558,7 @@ def get_report_list_kb(reports: list, page: int, total_pages: int) -> InlineKeyb
     if nav_row:
         keyboard.append(nav_row)
         
-    keyboard.append([InlineKeyboardButton(text="Назад к выбору даты", callback_data="back_to_edit_date")])
+    keyboard.append([InlineKeyboardButton(text="Назад до вибору дати", callback_data="back_to_edit_date")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_report_actions_kb(report_id: int) -> InlineKeyboardMarkup:
@@ -778,9 +778,71 @@ def get_broadcast_main_kb() -> InlineKeyboardMarkup:
     """Main menu for broadcasts."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Створити розсилку", callback_data="bc_create")],
+        [InlineKeyboardButton(text="📝 Опитувальник 1", callback_data="bc_survey")],
         [InlineKeyboardButton(text="📂 Архів розсилок", callback_data="bc_archive:0")],
+        [InlineKeyboardButton(text="📂 Архів опитувань", callback_data="survey_archive:0")],
         [InlineKeyboardButton(text="❌ Закрити", callback_data="close_admin_inline")]
     ])
+
+def get_survey_skip_photo_kb() -> InlineKeyboardMarkup:
+    """Keyboard to skip photo upload in survey creation."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏩ Пропустити (фото бажане)", callback_data="survey_skip_photo")],
+        [InlineKeyboardButton(text="❌ Відмінити", callback_data="bc_cancel")]
+    ])
+
+def get_survey_preview_kb() -> InlineKeyboardMarkup:
+    """Keyboard for admin to confirm survey sending."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Відправити опитування", callback_data="survey_send")],
+        [InlineKeyboardButton(text="❌ Відмінити", callback_data="bc_cancel")]
+    ])
+
+def get_survey_action_kb(survey_id: int) -> InlineKeyboardMarkup:
+    """Keyboard for users in groups to answer the survey."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Так", callback_data=f"survey_ans:{survey_id}:yes"),
+            InlineKeyboardButton(text="❌ Ні", callback_data=f"survey_ans:{survey_id}:no")
+        ]
+    ])
+
+def get_survey_user_skip_comment_kb() -> InlineKeyboardMarkup:
+    """Keyboard for user to skip comment during survey response."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏩ Пропустити", callback_data="survey_user_skip_comment")]
+    ])
+
+def get_survey_objects_kb(objects: list, selected_ids: list) -> InlineKeyboardMarkup:
+    """Keyboard for selecting target objects for survey."""
+    keyboard = []
+    
+    # Sort objects by name
+    sorted_objects = sorted(objects, key=lambda x: x['name'])
+    
+    # Chunks of 2 for compact display
+    for i in range(0, len(sorted_objects), 2):
+        row = []
+        for obj in sorted_objects[i:i+2]:
+            is_selected = obj['telegram_group_id'] in selected_ids
+            icon = "✅" if is_selected else "⬜"
+            row.append(InlineKeyboardButton(
+                text=f"{icon} {obj['name']}", 
+                callback_data=f"survey_toggle_obj:{obj['telegram_group_id']}"
+            ))
+        keyboard.append(row)
+        
+    # Quick select rows
+    keyboard.append([
+        InlineKeyboardButton(text="🔹 Вибрати всі", callback_data="survey_select_all"),
+        InlineKeyboardButton(text="🔸 Скинути всі", callback_data="survey_deselect_all")
+    ])
+    
+    # Action rows
+    keyboard.append([InlineKeyboardButton(text="🚀 ПІДТВЕРДИТИ ТА ВІДПРАВИТИ", callback_data="survey_confirm_send")])
+    keyboard.append([InlineKeyboardButton(text="❌ Відмінити", callback_data="bc_cancel")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_broadcast_preview_kb() -> InlineKeyboardMarkup:
     """Keyboard for previewing a broadcast."""
@@ -824,6 +886,36 @@ def get_broadcast_manage_kb(bc_id: int, is_pinned: bool) -> InlineKeyboardMarkup
         [InlineKeyboardButton(text="🗑 Видалити розсилку", callback_data=f"bc_delete:{bc_id}")],
         [InlineKeyboardButton(text="⬅️ До архіву", callback_data="bc_archive:0")]
     ])
+
+def get_survey_archive_kb(surveys: list, page: int, total_pages: int) -> InlineKeyboardMarkup:
+    """Keyboard for survey archive with pagination."""
+    keyboard = []
+    for s in surveys:
+        label = (s['text'][:30] + "...") if s['text'] else "📝 Опитування"
+        keyboard.append([InlineKeyboardButton(text=label, callback_data=f"survey_view:{s['id']}")])
+    
+    # Pagination
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton(text="⬅️", callback_data=f"survey_archive:{page-1}"))
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton(text="➡️", callback_data=f"survey_archive:{page+1}"))
+    
+    if nav_row:
+        keyboard.append(nav_row)
+        
+    keyboard.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="bc_main")])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_survey_manage_kb(survey_id: int) -> InlineKeyboardMarkup:
+    """Keyboard for managing an existing survey."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Переглянути відповіді", callback_data=f"survey_results:{survey_id}")],
+        [InlineKeyboardButton(text="🗑 Видалити опитування", callback_data=f"survey_delete:{survey_id}")],
+        [InlineKeyboardButton(text="⬅️ До архіву", callback_data="survey_archive:0")]
+    ])
+
+# --- Shift Keyboards ---
 
 # --- Shift Keyboards ---
 

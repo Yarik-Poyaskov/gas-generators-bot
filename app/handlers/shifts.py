@@ -19,7 +19,7 @@ from app.config import config
 
 router = Router()
 
-@router.message(F.text == "👤 Керування змінами")
+@router.message(F.text == "👤 Керування змінами", F.chat.type == "private")
 async def cmd_shifts_start(message: Message, state: FSMContext):
     user_objs = await get_user_objects_by_tg_id(message.from_user.id)
     

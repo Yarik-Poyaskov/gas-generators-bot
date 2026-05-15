@@ -63,6 +63,41 @@ async def init_db():
         await db.execute("CREATE TABLE IF NOT EXISTS broadcasts (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id BIGINT NOT NULL, text TEXT, photo_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
         await db.execute("CREATE TABLE IF NOT EXISTS broadcast_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, broadcast_id INTEGER NOT NULL, chat_id BIGINT NOT NULL, message_id BIGINT NOT NULL, is_pinned BOOLEAN DEFAULT 0, FOREIGN KEY (broadcast_id) REFERENCES broadcasts (id) ON DELETE CASCADE)")
         
+        # Surveys (Опитувальники)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS surveys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id BIGINT NOT NULL,
+                text TEXT,
+                photo_ids TEXT, -- JSON list of photo file_ids
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS survey_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                survey_id INTEGER NOT NULL,
+                chat_id BIGINT NOT NULL,
+                message_id TEXT, -- Can be a single ID or JSON list of IDs (for media groups)
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (survey_id) REFERENCES surveys (id) ON DELETE CASCADE
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS survey_responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                survey_id INTEGER NOT NULL,
+                user_id BIGINT NOT NULL,
+                full_name TEXT,
+                tc_name TEXT,
+                answer TEXT, -- 'yes' or 'no'
+                photo_id TEXT,
+                comment TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (survey_id) REFERENCES surveys (id) ON DELETE CASCADE
+            )
+        """)
+        
         await db.commit()
 
         # Default settings
@@ -464,9 +499,32 @@ async def confirm_schedule(schedule_id: int, user_db_id: int):
 async def get_schedules_for_report(date_str: str):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT o.name as tc_name, o.telegram_group_id, s.id as schedule_id, s.is_not_working, s.confirmed_by, u.full_name as confirmed_user_name, s.confirmed_at FROM objects o LEFT JOIN trader_schedules s ON o.id = s.object_id AND s.target_date = ? LEFT JOIN users u ON s.confirmed_by = u.id ORDER BY o.name", (date_str,))
+        # Добавляем o.id (object_id) в выборку для точной идентификации объекта в логике напоминаний
+        cursor = await db.execute("""
+            SELECT o.id as object_id, o.name as tc_name, o.telegram_group_id, 
+                   s.id as schedule_id, s.is_not_working, s.confirmed_by, 
+                   u.full_name as confirmed_user_name, s.confirmed_at 
+            FROM objects o 
+            LEFT JOIN trader_schedules s ON o.id = s.object_id AND s.target_date = ? 
+            LEFT JOIN users u ON s.confirmed_by = u.id 
+            ORDER BY o.name
+        """, (date_str,))
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
+
+async def get_schedule_by_object_and_date(object_id: int, date_str: str):
+    """
+    Возвращает график для конкретного объекта на указанную дату.
+    Используется для проверки непрерывности графиков на стыке суток.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM trader_schedules WHERE object_id = ? AND target_date = ?", 
+            (object_id, date_str)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
 
 async def has_any_schedule(date_str: str) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -892,3 +950,64 @@ async def get_active_shift_on_object(object_id: int):
         )
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+# --- Survey (Опитувальник) Functions ---
+
+async def create_survey(admin_id: int, text: str, photo_ids_json: str) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("INSERT INTO surveys (admin_id, text, photo_ids) VALUES (?, ?, ?)", (admin_id, text, photo_ids_json))
+        last_id = cursor.lastrowid
+        await db.commit()
+        return last_id
+
+async def add_survey_message(survey_id: int, chat_id: int, message_id_json: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("INSERT INTO survey_messages (survey_id, chat_id, message_id) VALUES (?, ?, ?)", (survey_id, chat_id, message_id_json))
+        await db.commit()
+
+async def get_survey(survey_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM surveys WHERE id = ?", (survey_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+async def get_survey_messages(survey_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM survey_messages WHERE survey_id = ?", (survey_id,))
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+async def add_survey_response(survey_id: int, user_id: int, full_name: str, tc_name: str, answer: str, photo_id: str = None, comment: str = None):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO survey_responses (survey_id, user_id, full_name, tc_name, answer, photo_id, comment)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (survey_id, user_id, full_name, tc_name, answer, photo_id, comment))
+        await db.commit()
+
+async def get_survey_responses(survey_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM survey_responses WHERE survey_id = ? ORDER BY created_at DESC", (survey_id,))
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+async def get_all_surveys(limit: int = 10, offset: int = 0):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM surveys ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+async def count_surveys():
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT COUNT(*) FROM surveys")
+        row = await cursor.fetchone()
+        return row[0]
+
+async def delete_survey_from_db(survey_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM surveys WHERE id = ?", (survey_id,))
+        await db.commit()

@@ -109,16 +109,10 @@ export default function TraderPortal() {
     if (!previewData) return;
     setLoading(true);
     try {
-      const items = Object.entries(previewData.data).map(([name, intervals]: [any, any]) => ({
-        db_name: name,
-        target_date: previewData.date.split('.').reverse().join('-'),
-        is_not_working: false,
-        intervals: intervals.map((i: any) => {
-          const [start, end] = i.time.split('-');
-          return { start, end, power: i.power, mode: 'Мережа' };
-        })
-      }));
-      const response = await api.post('/data/trader/publish', { items });
+      const response = await api.post('/data/trader/publish', { 
+        date_str: previewData.date,
+        items: previewData.data 
+      });
       if (response.data.success) {
         setSuccess(true);
         setShowInput(false);
@@ -150,7 +144,7 @@ export default function TraderPortal() {
 
           <div className="flex items-center gap-3">
              <input type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)}
-                className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl px-5 py-2.5 text-sm font-black outline-none focus:ring-2 ring-amber-500 transition-all cursor-pointer border border-slate-200 dark:border-white/5"
+                className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl px-5 py-2.5 text-sm font-black outline-none focus:ring-2 ring-amber-500 transition-all cursor-pointer border border-slate-200 dark:border-slate-800"
               />
              <button onClick={() => setShowInput(!showInput)}
                 className="bg-[#004899] text-white px-6 py-2.5 rounded-xl text-sm font-black hover:bg-[#003675] active:scale-95 transition-all shadow-xl shadow-blue-500/10"
@@ -165,20 +159,30 @@ export default function TraderPortal() {
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="bg-white dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl">
-                    <textarea className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none font-mono text-sm resize-none"
+                    <textarea className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none font-mono text-sm resize-none text-slate-900 dark:text-white"
                       placeholder="Вставте текст..." value={text} onChange={(e) => setText(e.target.value)}
                     />
-                    <button onClick={handleParse} className="w-full mt-3 bg-slate-900 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest">РОЗПІЗНАТИ ТЕКСТ</button>
+                    <button onClick={handleParse} className="w-full mt-3 bg-slate-900 dark:bg-amber-600 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black dark:hover:bg-amber-500 transition-colors">РОЗПІЗНАТИ ТЕКСТ</button>
                   </div>
                   <div className="bg-slate-900 p-6 rounded-[2rem] border border-white/5 flex flex-col justify-between shadow-2xl">
                      {previewData ? (
                        <>
                          <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-3">
                             <span className="text-xs font-black text-amber-400 uppercase tracking-widest">ДАТА: {previewData.date}</span>
-                            <button onClick={handleConfirm} className="bg-emerald-500 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest">ОПУБЛІКУВАТИ</button>
+                            <button onClick={handleConfirm} className="bg-emerald-500 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors">ОПУБЛІКУВАТИ</button>
                          </div>
-                         <div className="max-h-24 overflow-y-auto text-[10px] text-slate-400 space-y-1 pr-2">
-                            {Object.keys(previewData.data).map(n => <div key={n} className="flex justify-between border-b border-white/5 pb-1"><span className="text-white font-bold">{n}:</span> <span>{previewData.data[n].map((i:any)=>i.time).join(', ')}</span></div>)}
+                         <div className="max-h-32 overflow-y-auto text-[10px] text-slate-400 space-y-2 pr-2 custom-scrollbar">
+                            {previewData.data.map((item: any, idx: number) => (
+                              <div key={idx} className="flex justify-between border-b border-white/5 pb-1">
+                                <span className="text-white font-bold truncate max-w-[150px]">{item.db_name.replace('ТРЦ ', '').replace('ТЦ ', '')}:</span> 
+                                <span className="text-right">
+                                  {item.is_not_working ? 
+                                    <span className="text-rose-500 font-black">СТОП</span> : 
+                                    item.intervals.map((i:any)=>`${i.start}-${i.end}`).join(', ')
+                                  }
+                                </span>
+                              </div>
+                            ))}
                          </div>
                        </>
                      ) : <div className="h-full flex items-center justify-center text-slate-600 text-xs font-black uppercase">Очікування...</div>}

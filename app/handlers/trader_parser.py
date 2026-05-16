@@ -38,50 +38,44 @@ def normalize_text(text: str) -> str:
 
 def parse_trader_message(text: str, mapping: dict):
     """Parses trader's message and returns structured data with GPU-specific handling."""
+    is_correction = "коригування" in text.lower()
+    
     # 1. Extract Date
-    date_match = re.search(r"(\d{2}/\d{2}/\d{4})", text)
+    date_match = re.search(r"(\d{2}[/.]\d{2}[/.]\d{4})", text)
     if not date_match:
         return None, "Не знайдено дату в повідомленні."
     
-    target_date_raw = date_match.group(1)
+    target_date_raw = date_match.group(1).replace(".", "/")
     try:
         target_date = datetime.strptime(target_date_raw, "%d/%m/%Y").strftime("%Y-%m-%d")
     except:
         return None, "Некоректний формат дати."
 
     # 2. Split text into object blocks
-    # Try splitting by "По " first (backward compatibility)
     if re.search(r"(?im)^По\s+", text):
         blocks = re.split(r"(?im)^По\s+", text)
         if not blocks[0].lower().strip().startswith("по "):
             blocks = blocks[1:]
     else:
-        # Split by double newline OR by a newline followed by a quote (new format)
-        # Using a lookahead to keep the quote/newline structure if needed, but here we just split
         blocks = re.split(r"\n\n|\n(?=\")", text)
-        # Skip the message header "Графік роботи на..."
-        blocks = [b.strip() for b in blocks if b.strip() and "графік роботи на" not in b.lower()]
+        blocks = [b.strip() for b in blocks if b.strip() and "графік роботи на" not in b.lower() and "коригування на" not in b.lower()]
 
     results = []
     for block in blocks:
         lines = [l.strip() for l in block.split("\n") if l.strip()]
         if not lines: continue
         
-        # Clean header: remove quotes and extract name before colon
         header_line = lines[0].replace('"', '').strip()
         object_header = header_line.split(":")[0].strip()
-        
         norm_header = normalize_text(object_header)
         
         matched_db_names = []
-        # 1. Try matching with mapping keys (e.g. "К1", "К6")
         for key, db_names in mapping.items():
             norm_key = normalize_text(key)
             if re.search(rf"(?<!\w){re.escape(norm_key)}(?!\w)", norm_header, re.IGNORECASE):
                 matched_db_names = db_names
                 break
         
-        # 2. Try matching with DB names directly (e.g. "KC GPU-1") if no key matched
         if not matched_db_names:
             for key, db_names in mapping.items():
                 for db_name in db_names:
@@ -95,11 +89,32 @@ def parse_trader_message(text: str, mapping: dict):
         if not matched_db_names: continue
 
         gpu_intervals = {i: [] for i in range(len(matched_db_names) + 1)}
-        block_is_not_working = "-" in header_line and len(lines) == 1
+        # Блок считается нерабочим только если в заголовке есть " - " или ":-" или он заканчивается на "-"
+        # И при этом в блоке нет найденных интервалов времени.
+        block_is_not_working = (
+            re.search(r"[:\s]-$|:-\s| - ", header_line) is not None and 
+            (len(lines) == 1 or "режим" not in block.lower())
+        )
 
         for line in lines:
-            # Match time intervals "з 08:00 до 12:00"
-            time_matches = re.findall(r"(?i)з\s*(\d{1,2}[:.]\d{2})\s*(?:до|по|–|-)\s*(\d{1,2}[:.]\d{2})", line)
+            # Handle correction format: "режим острів до 22-00"
+            if is_correction and "режим" in line.lower():
+                mode = "Острів" if "острів" in line.lower() else "Мережа"
+                time_to_match = re.search(r"(?:до|по)\s*(\d{1,2}[:.-]\d{2})", line.lower())
+                time_from_match = re.search(r"(?:з|от)\s*(\d{1,2}[:.-]\d{2})", line.lower())
+                
+                start = time_from_match.group(1).replace("-", ":").replace(".", ":") if time_from_match else "00:00"
+                end = time_to_match.group(1).replace("-", ":").replace(".", ":") if time_to_match else "24:00"
+                
+                if len(start.split(":")[0]) == 1: start = "0" + start
+                if len(end.split(":")[0]) == 1: end = "0" + end
+                
+                gpu_intervals[0].append({"start": start, "end": end, "power": 100, "mode": mode})
+                block_is_not_working = False
+                continue
+
+            # Standard interval matching "з 08:00 до 12:00"
+            time_matches = re.findall(r"(?i)з\s*(\d{1,2}[:.-]\d{2})\s*(?:до|по|–|-)\s*(\d{1,2}[:.-]\d{2})", line)
             if not time_matches: continue
                 
             gpu_mention_match = re.search(r"(?i)(?:GPU|ГПУ)[-\s]*(\d+)|(\d+)\s*ГПУ", line)
@@ -107,11 +122,10 @@ def parse_trader_message(text: str, mapping: dict):
             
             power_match = re.search(r"(\d{1,3})%", line)
             power = int(power_match.group(1)) if power_match else 100
-            
             mode = "Острів" if "острів" in line.lower() else "Мережа"
 
             for start, end in time_matches:
-                start, end = start.replace(".", ":"), end.replace(".", ":")
+                start, end = start.replace("-", ":").replace(".", ":"), end.replace("-", ":").replace(".", ":")
                 if len(start.split(":")[0]) == 1: start = "0" + start
                 if len(end.split(":")[0]) == 1: end = "0" + end
                 
@@ -122,11 +136,19 @@ def parse_trader_message(text: str, mapping: dict):
         for i, db_name in enumerate(matched_db_names, 1):
             final_intervals = gpu_intervals[0] + gpu_intervals[i]
             final_intervals.sort(key=lambda x: x['start'])
+            
+            # Если найдены интервалы, объект точно работает
+            is_really_not_working = block_is_not_working
+            if final_intervals:
+                is_really_not_working = False
+            elif not is_correction:
+                is_really_not_working = True
+                
             results.append({
                 "db_name": db_name,
                 "target_date": target_date,
                 "intervals": final_intervals,
-                "is_not_working": block_is_not_working or not final_intervals
+                "is_not_working": is_really_not_working
             })
 
     return results, target_date_raw
@@ -134,6 +156,8 @@ def parse_trader_message(text: str, mapping: dict):
 def format_review_text(parsed_data, date_str, is_editing=False):
     """Formats the structured data for display."""
     title = "🤖 <b>Режим редагування графіка</b>" if is_editing else "🤖 <b>Розпізнано графік</b>"
+    if "коригування" in title.lower(): # This won't work easily here, let's adjust caller
+        pass 
     text = f"{title} на {date_str}\n\n"
     for item in parsed_data:
         display_name = re.sub(r"[\(\)]", "", item['db_name'])
@@ -147,7 +171,13 @@ def format_review_text(parsed_data, date_str, is_editing=False):
 
 @router.message(F.chat.id == config.trader_monitor_group_id)
 async def handle_trader_group_message(message: Message, state: FSMContext):
-    if not message.text or not message.text.strip().lower().startswith("графік роботи на"):
+    if not message.text: return
+    
+    msg_lower = message.text.strip().lower()
+    is_sched = msg_lower.startswith("графік роботи на")
+    is_corr = msg_lower.startswith("коригування на")
+    
+    if not (is_sched or is_corr):
         return
 
     if message.from_user.id not in config.monitored_trader_ids:
@@ -160,9 +190,12 @@ async def handle_trader_group_message(message: Message, state: FSMContext):
     user_data = await get_user(message.from_user.id)
     trader_name = user_data['full_name'] if user_data else message.from_user.full_name
 
-    text = f"Вітаю, <b>{trader_name}</b>! Перегляньте розпізнаний графік:\n\n"
-    text += format_review_text(parsed_data, date_str)
-    text += "\n<b>Все вірно?</b> Дані будуть збережені в базу."
+    title = "⚙️ <b>КОРИГУВАННЯ ГРАФІКА</b>" if is_corr else "🤖 <b>Розпізнано графік</b>"
+    text = f"Вітаю, <b>{trader_name}</b>! {title}:\n\n"
+    # Extract only the body of the formatted review
+    review_body = format_review_text(parsed_data, date_str).split('\n\n', 1)[1]
+    text += review_body
+    text += "\n<b>Оновити дані в базі?</b>"
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -173,6 +206,7 @@ async def handle_trader_group_message(message: Message, state: FSMContext):
     ])
     
     sent_msg = await message.reply(text, reply_markup=kb, parse_mode="HTML")
+    
     # Save group info to state
     await state.update_data(
         parsed_trader_data=parsed_data, 
@@ -180,7 +214,8 @@ async def handle_trader_group_message(message: Message, state: FSMContext):
         date_str=date_str,
         group_chat_id=message.chat.id,
         group_message_id=sent_msg.message_id,
-        trader_name=trader_name
+        trader_name=trader_name,
+        is_correction=is_corr
     )
     await state.set_state(TraderParserState.reviewing)
 
@@ -430,6 +465,14 @@ async def confirm_parsed_schedule(callback: CallbackQuery, state: FSMContext, bo
 @router.callback_query(F.data == "trader_parse_cancel")
 async def cancel_parsed_schedule(callback: CallbackQuery, state: FSMContext, bot: Bot):
     data = await state.get_data()
+    if not data or 'parsed_trader_data' not in data:
+        await callback.answer("Дані застаріли.", show_alert=True)
+        try:
+            await callback.message.delete()
+        except: pass
+        await state.clear()
+        return
+
     final_text = format_review_text(data['parsed_trader_data'], data['date_str']) + "\n❌ <b>Скасовано. Дані не збережені.</b>"
     try:
         await bot.edit_message_text(chat_id=data['group_chat_id'], message_id=data['group_message_id'], text=final_text, parse_mode="HTML")

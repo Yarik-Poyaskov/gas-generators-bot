@@ -60,9 +60,7 @@ export default function GPUCardCompact({ data, isNew }: GPUCardProps) {
   const rawReportDate = data.last_report_at;
   let reportDate: Date | null = null;
   if (rawReportDate) {
-    const isoDate = typeof rawReportDate === 'string' 
-      ? (rawReportDate.includes('T') ? rawReportDate : rawReportDate.replace(' ', 'T') + 'Z')
-      : rawReportDate.toISOString();
+    const isoDate = rawReportDate.includes('T') ? rawReportDate : rawReportDate.replace(' ', 'T') + 'Z';
     reportDate = new Date(isoDate);
   }
   const isReportToday = reportDate && reportDate.getUTCDate() === now.getUTCDate() && reportDate.getUTCMonth() === now.getUTCMonth();

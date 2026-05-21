@@ -69,3 +69,9 @@ gen_vapid_final.py
 list_objects.py
 sql.py
 db.py
+
+# PWA assets
+!frontend/public/manifest.json
+!frontend/public/icons/
+!frontend/public/icons/*.png
+

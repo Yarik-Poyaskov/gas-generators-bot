@@ -49,7 +49,7 @@ export default function ReportsHistory() {
 
   const filteredReports = reports.filter(r => 
     r.tc_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.reported_by.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (r.gpu_status || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -144,10 +144,10 @@ export default function ReportsHistory() {
                         <td className="px-8 py-5">
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900 dark:text-white text-sm">
-                              {new Date(report.timestamp).toLocaleDateString()}
+                              {new Date(report.created_at).toLocaleDateString()}
                             </span>
                             <span className="text-[10px] font-bold text-slate-400">
-                              {new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         </td>
@@ -169,7 +169,7 @@ export default function ReportsHistory() {
                           {report.load_power_percent ? `${report.load_power_percent}%` : '—'}
                         </td>
                         <td className="px-8 py-5 font-bold text-slate-600 dark:text-slate-400 text-xs">
-                          {report.reported_by}
+                          {report.full_name}
                         </td>
                         <td className="px-8 py-5 text-right">
                           <button className="p-2 text-slate-400 hover:text-[#004899] transition-colors">

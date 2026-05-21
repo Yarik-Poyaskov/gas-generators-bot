@@ -23,6 +23,8 @@ export interface ObjectInfo {
   is_not_working?: boolean;
   is_required?: boolean;
   current_schedule?: any[];
+  current_shift_name?: string;
+  current_shift_phone?: string;
 }
 
 export interface ReportInfo {

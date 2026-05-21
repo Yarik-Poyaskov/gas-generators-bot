@@ -22,6 +22,7 @@ class BroadcastState(StatesGroup):
     editing_existing = State()   # Редагування вже відправленого тексту
 
 class SurveyState(StatesGroup):
+    waiting_for_title = State()
     waiting_for_text = State()
     waiting_for_photos = State()
     waiting_for_objects = State()

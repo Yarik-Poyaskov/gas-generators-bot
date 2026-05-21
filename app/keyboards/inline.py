@@ -813,6 +813,12 @@ def get_survey_user_skip_comment_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="⏩ Пропустити", callback_data="survey_user_skip_comment")]
     ])
 
+def get_survey_user_done_photos_kb() -> InlineKeyboardMarkup:
+    """Keyboard for user to finish uploading photos and proceed to comment."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Перейти до коментаря", callback_data="survey_user_done_photos")]
+    ])
+
 def get_survey_objects_kb(objects: list, selected_ids: list) -> InlineKeyboardMarkup:
     """Keyboard for selecting target objects for survey."""
     keyboard = []

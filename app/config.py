@@ -37,8 +37,12 @@ class Settings(BaseSettings):
     cors_origins: str = Field("*", description="Comma-separated list of allowed CORS origins")
 
     # Google Sheets settings
-    google_sheets_json_key: str = Field(None, description="Path to Google Service Account JSON key")
-    google_sheets_url: str = Field(None, description="URL of the Google Spreadsheet")
+    google_sheets_json_key: str | None = Field(None, description="Path to Google Service Account JSON key")
+    google_sheets_url: str | None = Field(None, description="URL of the Google Spreadsheet")
+    google_apps_script_url: str | None = Field(None, description="URL of the Google Apps Script Web App for uploading photos")
+    google_apps_script_token: str | None = Field("GPU_SECRET_UPLOAD_TOKEN_2026", description="Token for Google Apps Script Web App validation")
+    base_url: str | None = Field(None, description="Base URL of the FastAPI server for local uploads")
+    imgbb_api_key: str | None = Field(None, description="Optional ImgBB API key for cloud uploads")
 
     @field_validator('admin_ids', 'monitored_trader_ids', mode='before')
     @classmethod

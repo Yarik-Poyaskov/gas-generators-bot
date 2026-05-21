@@ -1,6 +1,8 @@
 import asyncio
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from uvicorn import Config, Server
 
 from app.api.auth import router as auth_router, set_bot_instance
@@ -14,6 +16,10 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs" if config.api_token else None
 )
+
+# Ensure uploads directory exists and mount it
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # CORS Setup - allowing origins from config
 origins = [origin.strip() for origin in config.cors_origins.split(",")] if config.cors_origins else ["*"]

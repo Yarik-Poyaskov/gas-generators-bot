@@ -357,13 +357,28 @@ async def process_broadcast_delete(callback: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data == "bc_survey")
 async def start_survey_creation(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(SurveyState.waiting_for_text)
+    await state.set_state(SurveyState.waiting_for_title)
     await callback.message.answer(
-        "📝 <b>Опитувальник 1: Крок 1</b>\n\nВведіть текст опитування (запитання).",
+        "📝 <b>Опитувальник 1: Крок 1</b>\n\nВведіть тему опитування (наприклад, <i>Перевірка вогнегасників</i>):",
         reply_markup=get_simple_cancel_kb(),
         parse_mode="HTML"
     )
     await callback.answer()
+
+@router.message(SurveyState.waiting_for_title)
+async def process_survey_title(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        await state.clear()
+        await message.answer("Скасовано.", reply_markup=get_admin_main_keyboard())
+        return
+
+    await state.update_data(survey_title=message.text)
+    await state.set_state(SurveyState.waiting_for_text)
+    await message.answer(
+        "📝 <b>Опитувальник 1: Крок 2</b>\n\nВведіть текст опитування (запитання):",
+        reply_markup=get_simple_cancel_kb(),
+        parse_mode="HTML"
+    )
 
 @router.message(SurveyState.waiting_for_text)
 async def process_survey_text(message: Message, state: FSMContext):
@@ -375,7 +390,7 @@ async def process_survey_text(message: Message, state: FSMContext):
     await state.update_data(survey_text=message.text)
     await state.set_state(SurveyState.waiting_for_photos)
     await message.answer(
-        "🖼 <b>Опитувальник 1: Крок 2</b>\n\nНадішліть одне або кілька фото для опитування. "
+        "🖼 <b>Опитувальник 1: Крок 3</b>\n\nНадішліть одне або кілька фото для опитування. "
         "Коли закінчите, натисніть кнопку для передперегляду.",
         reply_markup=get_survey_skip_photo_kb(),
         parse_mode="HTML"
@@ -535,7 +550,8 @@ async def send_survey_logic(callback: CallbackQuery, state: FSMContext, bot: Bot
         return
         
     # 1. Create survey in DB
-    survey_id = await create_survey(callback.from_user.id, text, json.dumps(photos))
+    title = data.get("survey_title", "Без теми")
+    survey_id = await create_survey(callback.from_user.id, title, text, json.dumps(photos))
 
     await callback.message.edit_reply_markup(reply_markup=None)
     status_msg = await callback.message.answer(f"🚀 Починаю розсилку опитування на {len(target_groups)} груп...")
@@ -611,6 +627,8 @@ async def view_single_survey(callback: CallbackQuery):
     responses = await get_survey_responses(survey_id)
     
     text = f"📄 <b>Деталі опитування #{survey_id}</b>\n"
+    if survey.get('title'):
+        text += f"🏷 Тема: <b>{survey['title']}</b>\n"
     text += f"📅 Дата: {survey['created_at']}\n"
     text += f"👥 Груп: {len(msgs)}\n"
     text += f"📥 Відповідей: {len(responses)}\n\n"

@@ -68,6 +68,7 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS surveys (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 admin_id BIGINT NOT NULL,
+                title TEXT,
                 text TEXT,
                 photo_ids TEXT, -- JSON list of photo file_ids
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -99,6 +100,15 @@ async def init_db():
         """)
         
         await db.commit()
+
+        # Migration: Check if title column exists in surveys
+        try:
+            async with db.execute("SELECT title FROM surveys LIMIT 1") as cursor:
+                await cursor.fetchone()
+        except aiosqlite.OperationalError:
+            # Column doesn't exist, add it
+            await db.execute("ALTER TABLE surveys ADD COLUMN title TEXT")
+            await db.commit()
 
         # Default settings
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('summary_report_time', '09:40')")
@@ -953,9 +963,9 @@ async def get_active_shift_on_object(object_id: int):
 
 # --- Survey (Опитувальник) Functions ---
 
-async def create_survey(admin_id: int, text: str, photo_ids_json: str) -> int:
+async def create_survey(admin_id: int, title: str, text: str, photo_ids_json: str) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("INSERT INTO surveys (admin_id, text, photo_ids) VALUES (?, ?, ?)", (admin_id, text, photo_ids_json))
+        cursor = await db.execute("INSERT INTO surveys (admin_id, title, text, photo_ids) VALUES (?, ?, ?, ?)", (admin_id, title, text, photo_ids_json))
         last_id = cursor.lastrowid
         await db.commit()
         return last_id

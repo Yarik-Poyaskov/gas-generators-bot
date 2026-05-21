@@ -20,7 +20,8 @@ from app.keyboards.inline import (
     get_broadcast_main_kb, get_broadcast_preview_kb,
     get_broadcast_archive_kb, get_broadcast_manage_kb,
     get_survey_skip_photo_kb, get_survey_preview_kb, get_survey_action_kb,
-    get_survey_archive_kb, get_survey_manage_kb, get_survey_objects_kb
+    get_survey_archive_kb, get_survey_manage_kb, get_survey_objects_kb,
+    get_broadcast_objects_kb
 )
 from app.keyboards.reply import get_admin_main_keyboard, get_simple_cancel_kb
 from app.states.admin import BroadcastState, SurveyState
@@ -77,33 +78,113 @@ async def process_broadcast_content(message: Message, state: FSMContext):
         return
 
     await state.update_data(bc_text=text, bc_photo=photo_id)
+    
+    # NEW: Transition to object selection instead of preview
+    objects = await get_all_objects()
+    valid_objects = [obj for obj in objects if obj['telegram_group_id']]
+    
+    if not valid_objects:
+        await message.answer("⚠️ Немає об'єктів з прив'язаними групами! Розсилка неможлива.")
+        await state.clear()
+        return
+
+    # Default: select all
+    selected_ids = [obj['telegram_group_id'] for obj in valid_objects]
+    await state.update_data(selected_object_ids=selected_ids)
+    await state.set_state(BroadcastState.waiting_for_objects)
+    
+    await message.answer(
+        "🎯 <b>Розсилка: Крок 2</b>\n\nОберіть групи, в які потрібно надіслати повідомлення:",
+        reply_markup=get_broadcast_objects_kb(valid_objects, selected_ids),
+        parse_mode="HTML"
+    )
+
+@router.callback_query(BroadcastState.waiting_for_objects, F.data.startswith("bc_toggle_obj:"))
+async def toggle_broadcast_object(callback: CallbackQuery, state: FSMContext):
+    group_id = int(callback.data.split(":")[1])
+    data = await state.get_data()
+    selected_ids = data.get("selected_object_ids", [])
+    
+    if group_id in selected_ids:
+        selected_ids.remove(group_id)
+    else:
+        selected_ids.append(group_id)
+        
+    await state.update_data(selected_object_ids=selected_ids)
+    
+    objects = await get_all_objects()
+    valid_objects = [obj for obj in objects if obj['telegram_group_id']]
+    
+    await callback.message.edit_reply_markup(
+        reply_markup=get_broadcast_objects_kb(valid_objects, selected_ids)
+    )
+    await callback.answer()
+
+@router.callback_query(BroadcastState.waiting_for_objects, F.data == "bc_select_all")
+async def broadcast_select_all_objects(callback: CallbackQuery, state: FSMContext):
+    objects = await get_all_objects()
+    valid_objects = [obj for obj in objects if obj['telegram_group_id']]
+    selected_ids = [obj['telegram_group_id'] for obj in valid_objects]
+    
+    await state.update_data(selected_object_ids=selected_ids)
+    await callback.message.edit_reply_markup(
+        reply_markup=get_broadcast_objects_kb(valid_objects, selected_ids)
+    )
+    await callback.answer()
+
+@router.callback_query(BroadcastState.waiting_for_objects, F.data == "bc_deselect_all")
+async def broadcast_deselect_all_objects(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(selected_object_ids=[])
+    objects = await get_all_objects()
+    valid_objects = [obj for obj in objects if obj['telegram_group_id']]
+    
+    await callback.message.edit_reply_markup(
+        reply_markup=get_broadcast_objects_kb(valid_objects, [])
+    )
+    await callback.answer()
+
+@router.callback_query(BroadcastState.waiting_for_objects, F.data == "bc_confirm_send")
+async def broadcast_preview_step(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    target_groups = data.get("selected_object_ids", [])
+    
+    if not target_groups:
+        await callback.answer("⚠️ Оберіть хоча б одну групу!", show_alert=True)
+        return
+
+    text = data.get("bc_text")
+    photo_id = data.get("bc_photo")
+    
     await state.set_state(BroadcastState.confirming)
     
-    await message.answer("👀 <b>Передперегляд розсилки:</b>", reply_markup=get_admin_main_keyboard(), parse_mode="HTML")
+    await callback.message.answer(
+        f"👀 <b>Передперегляд розсилки:</b>\n🎯 Буде відправлено у <b>{len(target_groups)}</b> груп.", 
+        reply_markup=get_admin_main_keyboard(), 
+        parse_mode="HTML"
+    )
     
     if photo_id:
-        await message.answer_photo(photo=photo_id, caption=text, reply_markup=get_broadcast_preview_kb(), parse_mode="HTML")
+        await callback.message.answer_photo(photo=photo_id, caption=text, reply_markup=get_broadcast_preview_kb(), parse_mode="HTML")
     else:
-        await message.answer(text, reply_markup=get_broadcast_preview_kb(), parse_mode="HTML")
+        await callback.message.answer(text, reply_markup=get_broadcast_preview_kb(), parse_mode="HTML")
+    
+    await callback.answer()
 
 @router.callback_query(BroadcastState.confirming, F.data.startswith("bc_send:"))
 async def send_broadcast_logic(callback: CallbackQuery, state: FSMContext, bot: Bot):
     data = await state.get_data()
     text = data.get("bc_text")
     photo_id = data.get("bc_photo")
+    target_groups = data.get("selected_object_ids", [])
     pin_mode = callback.data.split(":")[1] == "pinned"
-    
-    # 1. Create broadcast in DB
-    bc_id = await create_broadcast(callback.from_user.id, text, photo_id)
-    
-    # 2. Get all objects with unique groups
-    objects = await get_all_objects()
-    target_groups = list(set(obj['telegram_group_id'] for obj in objects if obj['telegram_group_id']))
     
     if not target_groups:
         await callback.answer("⚠️ Немає груп для розсилки!", show_alert=True)
         return
 
+    # 1. Create broadcast in DB
+    bc_id = await create_broadcast(callback.from_user.id, text, photo_id)
+    
     await callback.message.edit_reply_markup(reply_markup=None)
     status_msg = await callback.message.answer(f"🚀 Починаю розсилку на {len(target_groups)} груп...")
     

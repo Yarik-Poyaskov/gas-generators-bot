@@ -17,6 +17,7 @@ class AdminState(StatesGroup):
     
 class BroadcastState(StatesGroup):
     waiting_for_content = State() # Очікування тексту та/або фото
+    waiting_for_objects = State() # Очікування вибору груп
     confirming = State()         # Предпросмотр перед відправкою
     editing_existing = State()   # Редагування вже відправленого тексту
 

@@ -844,6 +844,37 @@ def get_survey_objects_kb(objects: list, selected_ids: list) -> InlineKeyboardMa
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+def get_broadcast_objects_kb(objects: list, selected_ids: list) -> InlineKeyboardMarkup:
+    """Keyboard for selecting target objects for standard broadcast."""
+    keyboard = []
+    
+    # Sort objects by name
+    sorted_objects = sorted(objects, key=lambda x: x['name'])
+    
+    # Chunks of 2 for compact display
+    for i in range(0, len(sorted_objects), 2):
+        row = []
+        for obj in sorted_objects[i:i+2]:
+            is_selected = obj['telegram_group_id'] in selected_ids
+            icon = "✅" if is_selected else "⬜"
+            row.append(InlineKeyboardButton(
+                text=f"{icon} {obj['name']}", 
+                callback_data=f"bc_toggle_obj:{obj['telegram_group_id']}"
+            ))
+        keyboard.append(row)
+        
+    # Quick select rows
+    keyboard.append([
+        InlineKeyboardButton(text="🔹 Вибрати всі", callback_data="bc_select_all"),
+        InlineKeyboardButton(text="🔸 Скинути всі", callback_data="bc_deselect_all")
+    ])
+    
+    # Action rows
+    keyboard.append([InlineKeyboardButton(text="🚀 ПЕРЕЙТИ ДО ПЕРЕДПЕРЕГЛЯДУ", callback_data="bc_confirm_send")])
+    keyboard.append([InlineKeyboardButton(text="❌ Відмінити", callback_data="bc_cancel")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
 def get_broadcast_preview_kb() -> InlineKeyboardMarkup:
     """Keyboard for previewing a broadcast."""
     return InlineKeyboardMarkup(inline_keyboard=[

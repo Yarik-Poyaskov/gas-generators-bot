@@ -15,9 +15,21 @@ import {
   Info,
   Clock,
   Zap,
-  Activity
+  Activity,
+  Plus,
+  Trash2,
+  Settings2,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+interface ScheduleItem {
+  db_name: string;
+  is_not_working: boolean;
+  selectedHours: number[]; // 0 to 23
+  power: number;
+  mode: 'Мережа' | 'Острів';
+}
 
 // Компонент для визуальной шкалы 24ч
 const TimelineBar = ({ intervals, isNotWorking }: { intervals: any[], isNotWorking: boolean }) => {
@@ -71,11 +83,121 @@ export default function TraderPortal() {
   const [fetching, setFetching] = useState(false);
   const [showInput, setShowInput] = useState(false);
 
+  // Стейты для ручного ввода
+  const [activeTab, setActiveTab] = useState<'text' | 'manual'>('text');
+  const [objects, setObjects] = useState<any[]>([]);
+  const [manualSchedules, setManualSchedules] = useState<ScheduleItem[]>([]);
+  const [objectsFetching, setObjectsFetching] = useState(false);
+
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
     if (!token) { window.location.href = '/login'; return; }
     fetchSchedules(viewDate);
+    fetchObjects();
   }, [viewDate]);
+
+  const fetchObjects = async () => {
+    setObjectsFetching(true);
+    try {
+      const response = await api.get('/data/objects');
+      setObjects(response.data);
+    } catch (err) {
+      console.error('Не вдалося завантажити об\'єкти', err);
+    } finally {
+      setObjectsFetching(false);
+    }
+  };
+
+  const addObject = (name: string) => {
+    if (manualSchedules.find(s => s.db_name === name)) return;
+    setManualSchedules([...manualSchedules, {
+      db_name: name,
+      is_not_working: false,
+      selectedHours: [],
+      power: 100,
+      mode: 'Мережа'
+    }]);
+  };
+
+  const removeObject = (name: string) => {
+    setManualSchedules(manualSchedules.filter(s => s.db_name !== name));
+  };
+
+  const toggleHour = (objName: string, hour: number) => {
+    setManualSchedules(manualSchedules.map(s => {
+      if (s.db_name !== objName) return s;
+      const hours = s.selectedHours.includes(hour) 
+        ? s.selectedHours.filter(h => h !== hour)
+        : [...s.selectedHours, hour].sort((a, b) => a - b);
+      return { ...s, selectedHours: hours, is_not_working: hours.length === 0 };
+    }));
+  };
+
+  const updateProp = (objName: string, key: 'power' | 'mode' | 'is_not_working', value: any) => {
+    setManualSchedules(manualSchedules.map(s => {
+      if (s.db_name !== objName) return s;
+      return { ...s, [key]: value };
+    }));
+  };
+
+  const convertToIntervals = (hours: number[], power: number, mode: string) => {
+    if (hours.length === 0) return [];
+    const intervals = [];
+    let start = hours[0];
+    let prev = hours[0];
+
+    for (let i = 1; i <= hours.length; i++) {
+      if (i < hours.length && hours[i] === prev + 1) {
+        prev = hours[i];
+      } else {
+        intervals.push({
+          start: `${start.toString().padStart(2, '0')}:00`,
+          end: `${(prev + 1).toString().padStart(2, '0')}:00`,
+          power,
+          mode
+        });
+        if (i < hours.length) {
+          start = hours[i];
+          prev = hours[i];
+        }
+      }
+    }
+    return intervals;
+  };
+
+  const handlePublishManual = async () => {
+    if (manualSchedules.length === 0) return;
+    setLoading(true);
+    setError('');
+    
+    try {
+      const items = manualSchedules.map(s => ({
+        db_name: s.db_name,
+        target_date: viewDate,
+        is_not_working: s.is_not_working,
+        intervals: s.is_not_working ? [] : convertToIntervals(s.selectedHours, s.power, s.mode)
+      }));
+
+      const response = await api.post('/data/trader/publish', {
+        date_str: viewDate.split('-').reverse().join('/'),
+        items
+      });
+
+      if (response.data.success) {
+        setSuccess(true);
+        setManualSchedules([]);
+        setShowInput(false);
+        fetchSchedules(viewDate);
+        setTimeout(() => setSuccess(false), 3000);
+      } else {
+        setError(response.data.error || 'Помилка публікації');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Помилка сервера');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchSchedules = async (date: string) => {
     setFetching(true);
@@ -154,40 +276,254 @@ export default function TraderPortal() {
           </div>
         </div>
 
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl flex items-center gap-3 text-rose-500 font-bold mb-4">
+            <AlertCircle className="w-5 h-5" /> {error}
+          </motion.div>
+        )}
+
+        {success && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex items-center gap-3 text-emerald-500 font-bold mb-4">
+            <CheckCircle2 className="w-5 h-5" /> Графік успішно опубліковано!
+          </motion.div>
+        )}
+
         <AnimatePresence>
           {showInput && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div className="bg-white dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl">
-                    <textarea className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none font-mono text-sm resize-none text-slate-900 dark:text-white"
-                      placeholder="Вставте текст..." value={text} onChange={(e) => setText(e.target.value)}
-                    />
-                    <button onClick={handleParse} className="w-full mt-3 bg-slate-900 dark:bg-amber-600 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black dark:hover:bg-amber-500 transition-colors">РОЗПІЗНАТИ ТЕКСТ</button>
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-4">
+              <div className="bg-white dark:bg-slate-950 p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
+                
+                {/* Вкладки */}
+                <div className="flex border-b border-slate-100 dark:border-slate-900 pb-3 justify-between items-center">
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setActiveTab('text')}
+                      className={`text-sm font-black pb-2 px-1 border-b-2 transition-all ${
+                        activeTab === 'text'
+                          ? 'border-[#004899] text-[#004899] dark:border-amber-500 dark:text-amber-500'
+                          : 'border-transparent text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      📝 Розпізнати текст
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('manual')}
+                      className={`text-sm font-black pb-2 px-1 border-b-2 transition-all ${
+                        activeTab === 'manual'
+                          ? 'border-[#004899] text-[#004899] dark:border-amber-500 dark:text-amber-500'
+                          : 'border-transparent text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      🖱️ Ручний ввід
+                    </button>
                   </div>
-                  <div className="bg-slate-900 p-6 rounded-[2rem] border border-white/5 flex flex-col justify-between shadow-2xl">
-                     {previewData ? (
-                       <>
-                         <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-3">
-                            <span className="text-xs font-black text-amber-400 uppercase tracking-widest">ДАТА: {previewData.date}</span>
-                            <button onClick={handleConfirm} className="bg-emerald-500 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors">ОПУБЛІКУВАТИ</button>
-                         </div>
-                         <div className="max-h-32 overflow-y-auto text-[10px] text-slate-400 space-y-2 pr-2 custom-scrollbar">
-                            {previewData.data.map((item: any, idx: number) => (
-                              <div key={idx} className="flex justify-between border-b border-white/5 pb-1">
-                                <span className="text-white font-bold truncate max-w-[150px]">{item.db_name.replace('ТРЦ ', '').replace('ТЦ ', '')}:</span> 
-                                <span className="text-right">
-                                  {item.is_not_working ? 
-                                    <span className="text-rose-500 font-black">СТОП</span> : 
-                                    item.intervals.map((i:any)=>`${i.start}-${i.end}`).join(', ')
-                                  }
-                                </span>
+                  
+                  {activeTab === 'manual' && (
+                    <div className="text-[11px] font-black text-amber-500 uppercase tracking-widest bg-amber-500/10 px-4 py-1.5 rounded-xl border border-amber-500/20">
+                      Публікація на: {viewDate.split('-').reverse().join('.')}
+                    </div>
+                  )}
+                </div>
+
+                {/* Вкладка 1: Розпізнати текст */}
+                {activeTab === 'text' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-3xl border border-slate-100 dark:border-slate-900">
+                      <textarea 
+                        className="w-full h-36 p-4 bg-white dark:bg-slate-900 rounded-2xl outline-none font-mono text-sm resize-none text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800"
+                        placeholder="Вставте текст графіка..." 
+                        value={text} 
+                        onChange={(e) => setText(e.target.value)}
+                      />
+                      <button 
+                        onClick={handleParse} 
+                        disabled={loading}
+                        className="w-full mt-3 bg-slate-900 dark:bg-amber-600 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black dark:hover:bg-amber-500 transition-colors disabled:opacity-50"
+                      >
+                        {loading ? 'ОБРОБКА...' : 'РОЗПІЗНАТИ ТЕКСТ'}
+                      </button>
+                    </div>
+                    <div className="bg-slate-900 p-6 rounded-3xl border border-white/5 flex flex-col justify-between shadow-2xl">
+                       {previewData ? (
+                         <>
+                           <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-3">
+                              <span className="text-xs font-black text-amber-400 uppercase tracking-widest">ДАТА: {previewData.date}</span>
+                              <button onClick={handleConfirm} className="bg-emerald-500 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors">ОПУБЛІКУВАТИ</button>
+                           </div>
+                           <div className="max-h-36 overflow-y-auto text-[10px] text-slate-400 space-y-2 pr-2 custom-scrollbar">
+                              {previewData.data.map((item: any, idx: number) => (
+                                <div key={idx} className="flex justify-between border-b border-white/5 pb-1">
+                                  <span className="text-white font-bold truncate max-w-[150px]">{item.db_name.replace('ТРЦ ', '').replace('ТЦ ', '')}:</span> 
+                                  <span className="text-right">
+                                    {item.is_not_working ? 
+                                      <span className="text-rose-500 font-black">СТОП</span> : 
+                                      item.intervals.map((i:any)=>`${i.start}-${i.end}`).join(', ')
+                                    }
+                                  </span>
+                                </div>
+                              ))}
+                           </div>
+                         </>
+                       ) : <div className="h-full flex items-center justify-center text-slate-600 text-xs font-black uppercase">Очікування на текст...</div>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Вкладка 2: Ручний ввід */}
+                {activeTab === 'manual' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    
+                    {/* Список объектов слева */}
+                    <div className="lg:col-span-1 bg-slate-50 dark:bg-slate-900/30 rounded-3xl border border-slate-100 dark:border-slate-900 p-4 h-fit max-h-[450px] overflow-hidden flex flex-col">
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Plus className="w-3.5 h-3.5" /> Додати об'єкт
+                      </h3>
+                      <div className="space-y-1.5 overflow-y-auto pr-1 custom-scrollbar">
+                        {objectsFetching ? (
+                          <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-slate-300" /></div>
+                        ) : (
+                          objects.map(obj => {
+                            const isAdded = manualSchedules.find(s => s.db_name === obj.name);
+                            return (
+                              <button
+                                key={obj.id}
+                                onClick={() => isAdded ? removeObject(obj.name) : addObject(obj.name)}
+                                className={`w-full text-left px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex justify-between items-center border border-transparent ${
+                                  isAdded 
+                                  ? 'bg-[#004899] dark:bg-amber-500 text-white shadow-md' 
+                                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 border-slate-150 dark:border-slate-800'
+                                }`}
+                              >
+                                <span className="truncate">{obj.short_name || obj.name.replace('ТРЦ ', '').replace('ТЦ ', '')}</span>
+                                {isAdded && <CheckCircle2 className="w-3.5 h-3.5" />}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Редактор справа */}
+                    <div className="lg:col-span-3 space-y-4 max-h-[450px] overflow-y-auto pr-1 custom-scrollbar">
+                      {manualSchedules.length === 0 ? (
+                        <div className="h-full min-h-[250px] border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col items-center justify-center text-slate-300 dark:text-slate-700 bg-slate-50/50 dark:bg-slate-900/10 p-12">
+                          <Activity className="w-12 h-12 mb-3 opacity-20" />
+                          <p className="font-black uppercase tracking-[0.2em] text-xs text-center">Оберіть об'єкти зліва для налаштування</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {manualSchedules.map((sched) => (
+                            <div 
+                              key={sched.db_name}
+                              className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 relative group"
+                            >
+                              <button 
+                                onClick={() => removeObject(sched.db_name)}
+                                className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-rose-500 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+
+                              <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+                                <div className="w-full md:w-44">
+                                  <h4 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+                                    {sched.db_name.replace('ТРЦ ', '').replace('ТЦ ', '')}
+                                  </h4>
+                                  <div className="flex gap-1.5 mt-1.5">
+                                     <button 
+                                       onClick={() => updateProp(sched.db_name, 'is_not_working', !sched.is_not_working)}
+                                       className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase transition-all ${
+                                         sched.is_not_working 
+                                         ? 'bg-rose-500 text-white' 
+                                         : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-250 dark:border-slate-700'
+                                       }`}
+                                     >
+                                       Стоп
+                                     </button>
+                                     <button 
+                                       onClick={() => updateProp(sched.db_name, 'mode', sched.mode === 'Мережа' ? 'Острів' : 'Мережа')}
+                                       className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase transition-all ${
+                                         sched.mode === 'Острів' 
+                                         ? 'bg-amber-500 text-white' 
+                                         : 'bg-blue-500 text-white'
+                                       }`}
+                                     >
+                                       {sched.mode}
+                                     </button>
+                                  </div>
+                                </div>
+
+                                {!sched.is_not_working && (
+                                  <div className="flex-1 flex flex-wrap gap-1">
+                                    {[100, 95, 90, 80, 70, 50, 30].map(p => (
+                                      <button
+                                        key={p}
+                                        onClick={() => updateProp(sched.db_name, 'power', p)}
+                                        className={`px-2.5 py-0.5 rounded-md text-[10px] font-black transition-all ${
+                                          sched.power === p 
+                                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm' 
+                                          : 'bg-white dark:bg-slate-900 text-slate-400 hover:bg-slate-100 border border-slate-200 dark:border-slate-850'
+                                        }`}
+                                      >
+                                        {p}%
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            ))}
-                         </div>
-                       </>
-                     ) : <div className="h-full flex items-center justify-center text-slate-600 text-xs font-black uppercase">Очікування...</div>}
+
+                              {!sched.is_not_working && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                    <Clock className="w-3 h-3" /> Години роботи (клікніть для активації):
+                                  </div>
+                                  <div className="grid grid-cols-8 md:grid-cols-12 gap-1">
+                                    {Array.from({ length: 24 }).map((_, h) => (
+                                      <button
+                                        key={h}
+                                        onClick={() => toggleHour(sched.db_name, h)}
+                                        className={`aspect-square rounded-lg flex items-center justify-center text-[10px] font-black transition-all ${
+                                          sched.selectedHours.includes(h)
+                                          ? (sched.mode === 'Острів' ? 'bg-amber-500 text-white shadow-sm' : 'bg-blue-500 text-white shadow-sm')
+                                          : 'bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-700 hover:bg-slate-100 border border-slate-200 dark:border-slate-800'
+                                        }`}
+                                      >
+                                        {h.toString().padStart(2, '0')}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  
+                                  {sched.selectedHours.length > 0 && (
+                                    <div className="pt-1 flex items-center gap-2">
+                                       <div className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                                         Інтервали: {convertToIntervals(sched.selectedHours, sched.power, sched.mode).map(i => `${i.start}-${i.end}`).join(', ')}
+                                       </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Кнопка публикации внизу списка */}
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              onClick={handlePublishManual}
+                              disabled={loading}
+                              className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-350 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-2"
+                            >
+                              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                              Опублікувати ручний графік
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                   </div>
-               </div>
+                )}
+
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -78,7 +78,7 @@ export default function TraderPortal() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   
-  const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
+  const [viewDate, setViewDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [schedules, setSchedules] = useState<any[]>([]);
   const [fetching, setFetching] = useState(false);
   const [showInput, setShowInput] = useState(false);
@@ -391,7 +391,7 @@ export default function TraderPortal() {
                                 className={`w-full text-left px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex justify-between items-center border border-transparent ${
                                   isAdded 
                                   ? 'bg-[#004899] dark:bg-amber-500 text-white shadow-md' 
-                                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 border-slate-150 dark:border-slate-800'
+                                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800'
                                 }`}
                               >
                                 <span className="truncate">{obj.short_name || obj.name.replace('ТРЦ ', '').replace('ТЦ ', '')}</span>
@@ -435,7 +435,7 @@ export default function TraderPortal() {
                                        className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase transition-all ${
                                          sched.is_not_working 
                                          ? 'bg-rose-500 text-white' 
-                                         : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-250 dark:border-slate-700'
+                                         : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
                                        }`}
                                      >
                                        Стоп
@@ -462,7 +462,7 @@ export default function TraderPortal() {
                                         className={`px-2.5 py-0.5 rounded-md text-[10px] font-black transition-all ${
                                           sched.power === p 
                                           ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm' 
-                                          : 'bg-white dark:bg-slate-900 text-slate-400 hover:bg-slate-100 border border-slate-200 dark:border-slate-850'
+                                          : 'bg-white dark:bg-slate-900 text-slate-400 hover:bg-slate-100 border border-slate-200 dark:border-slate-800'
                                         }`}
                                       >
                                         {p}%
@@ -510,7 +510,7 @@ export default function TraderPortal() {
                             <button
                               onClick={handlePublishManual}
                               disabled={loading}
-                              className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-350 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-2"
+                              className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-2"
                             >
                               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                               Опублікувати ручний графік

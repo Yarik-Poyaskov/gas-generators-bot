@@ -173,7 +173,13 @@ async def get_objects_with_latest_status():
     All data (status, power, mode) is taken ONLY from reports created TODAY.
     Power values are taken specifically from 'Short Reports' (is_short=1).
     """
-    today_str = date.today().isoformat()
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+    
+    KYIV_TZ = ZoneInfo("Europe/Kiev")
+    today_str = datetime.now(KYIV_TZ).date().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         # Main query for overall status (ONLY TODAY)
@@ -229,10 +235,6 @@ async def get_objects_with_latest_status():
                 short = name.split(' ')[-1]
             d['short_name'] = short.replace('GPU', '').replace('ГПУ', '').strip()
 
-            if not d['time_type']:
-                st = (d['gpu_status'] or '').lower()
-                d['time_type'] = 'start' if ('стабільна' in st or 'запуск' in st) else 'stop'
-
             s_cursor = await db.execute("SELECT schedule_json, is_not_working FROM trader_schedules WHERE object_id = ? AND target_date = ? LIMIT 1", (d['id'], today_str))
             s_row = await s_cursor.fetchone()
             try:
@@ -242,6 +244,79 @@ async def get_objects_with_latest_status():
                 logging.error(f"Error parsing schedule for object {d['id']}: {e}")
                 d['current_schedule'] = []
                 d['is_not_working'] = False
+
+            # --- ЛОГИКА НАСЛЕДОВАНИЯ СТАТУСА (СТЫК СУТОК) ---
+            d['is_inherited'] = False
+            if not d['gpu_status']:
+                yesterday_str = (datetime.now(KYIV_TZ) - timedelta(days=1)).date().isoformat()
+                yesterday_cursor = await db.execute(
+                    "SELECT schedule_json, is_not_working FROM trader_schedules WHERE object_id = ? AND target_date = ? LIMIT 1", 
+                    (d['id'], yesterday_str)
+                )
+                yesterday_row = await yesterday_cursor.fetchone()
+                
+                yesterday_sched = []
+                yesterday_is_not_working = False
+                if yesterday_row:
+                    try:
+                        yesterday_sched = json.loads(yesterday_row[0]) if yesterday_row[0] else []
+                        yesterday_is_not_working = bool(yesterday_row[1])
+                    except Exception as e:
+                        logging.error(f"Error parsing yesterday schedule for object {d['id']}: {e}")
+                
+                is_continuous = False
+                if (d['current_schedule'] and not d['is_not_working'] and 
+                    yesterday_sched and not yesterday_is_not_working):
+                    # Проверяем, заканчивается ли вчерашний интервал в полночь
+                    yesterday_ends_at_midnight = False
+                    for inv in yesterday_sched:
+                        if inv.get('end') in ['24:00', '00:00', '23:59']:
+                            yesterday_ends_at_midnight = True
+                            break
+                    
+                    # Проверяем, начинается ли сегодняшний интервал в полночь
+                    today_starts_at_midnight = False
+                    for inv in d['current_schedule']:
+                        if inv.get('start') in ['00:00', '00:05']:
+                            today_starts_at_midnight = True
+                            break
+                    
+                    if yesterday_ends_at_midnight and today_starts_at_midnight:
+                        is_continuous = True
+                
+                if is_continuous:
+                    report_cursor = await db.execute("""
+                        SELECT work_mode, gpu_status, start_time, time_type, created_at as last_report_at, full_name as reported_by
+                        FROM reports
+                        WHERE tc_name LIKE '%' || ? || '%' AND date(created_at) = ?
+                        ORDER BY created_at DESC LIMIT 1
+                    """, (d['name'], yesterday_str))
+                    report_row = await report_cursor.fetchone()
+                    if report_row:
+                        d['work_mode'] = report_row['work_mode']
+                        d['gpu_status'] = report_row['gpu_status']
+                        d['start_time'] = report_row['start_time']
+                        d['time_type'] = report_row['time_type']
+                        d['last_report_at'] = report_row['last_report_at']
+                        d['reported_by'] = report_row['reported_by']
+                        d['is_inherited'] = True
+                        
+                        # Мощность за вчера
+                        power_cursor = await db.execute("""
+                            SELECT load_power_percent, load_power_kw
+                            FROM reports
+                            WHERE tc_name LIKE '%' || ? || '%' AND is_short = 1 AND date(created_at) = ?
+                            ORDER BY created_at DESC LIMIT 1
+                        """, (d['name'], yesterday_str))
+                        power_row = await power_cursor.fetchone()
+                        if power_row:
+                            d['load_power_percent'] = power_row['load_power_percent']
+                            d['load_power_kw'] = power_row['load_power_kw']
+
+            if not d['time_type']:
+                st = (d['gpu_status'] or '').lower()
+                d['time_type'] = 'start' if ('стабільна' in st or 'запуск' in st) else 'stop'
+
             result.append(d)
         return result
 

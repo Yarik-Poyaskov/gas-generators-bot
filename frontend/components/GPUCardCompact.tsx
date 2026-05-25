@@ -63,7 +63,7 @@ export default function GPUCardCompact({ data, isNew }: GPUCardProps) {
     const isoDate = rawReportDate.includes('T') ? rawReportDate : rawReportDate.replace(' ', 'T') + 'Z';
     reportDate = new Date(isoDate);
   }
-  const isReportToday = reportDate && reportDate.getUTCDate() === now.getUTCDate() && reportDate.getUTCMonth() === now.getUTCMonth();
+  const isReportToday = (reportDate && reportDate.getUTCDate() === now.getUTCDate() && reportDate.getUTCMonth() === now.getUTCMonth()) || data.is_inherited;
 
   const getPlannedTime = () => {
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -235,7 +235,9 @@ export default function GPUCardCompact({ data, isNew }: GPUCardProps) {
                 <div className="space-y-1">
                   <div className="flex justify-between items-center text-[9px]">
                     <span className="font-black text-slate-400 uppercase tracking-tighter">Подав:</span>
-                    <span className="font-black text-slate-700 dark:text-slate-200 truncate ml-2">{data.reported_by || '—'}</span>
+                    <span className="font-black text-slate-700 dark:text-slate-200 truncate ml-2">
+                      {data.reported_by || '—'} {data.is_inherited && <span className="text-[8px] text-amber-500 font-bold ml-1">(перехідний)</span>}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center text-[9px]">
                     <span className="font-black text-slate-400 uppercase tracking-tighter">Час:</span>

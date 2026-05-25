@@ -70,9 +70,9 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
       reportDate = new Date(isoDate);
     }
     
-    const isReportToday = reportDate && reportDate.getUTCDate() === now.getUTCDate() && reportDate.getUTCMonth() === now.getUTCMonth();
+    const isReportToday = (reportDate && reportDate.getUTCDate() === now.getUTCDate() && reportDate.getUTCMonth() === now.getUTCMonth()) || data.is_inherited;
     
-    // STRICT Running check: must have a today's report AND active status
+    // STRICT Running check: must have a today's report (or inherited) AND active status
     const status = (data.gpu_status || '').toLowerCase();
     const isRunning = isReportToday && (status.includes('стабільна') || status.includes('аваріями'));
     
@@ -334,7 +334,7 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
         <div className="flex flex-col min-w-0">
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Останній звіт:</span>
           <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 leading-tight">
-            {data.reported_by || 'Система'}
+            {data.reported_by || 'Система'} {data.is_inherited && <span className="text-[9px] text-amber-500 font-bold ml-1">(перехідний)</span>}
           </span>
         </div>
       </div>

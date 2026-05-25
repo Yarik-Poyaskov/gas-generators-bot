@@ -25,6 +25,7 @@ export interface ObjectInfo {
   current_schedule?: any[];
   current_shift_name?: string;
   current_shift_phone?: string;
+  is_inherited?: boolean;
 }
 
 export interface ReportInfo {

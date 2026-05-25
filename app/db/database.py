@@ -489,6 +489,8 @@ async def get_user_by_identifier(identifier: str):
 
 async def add_trader_schedule(object_id: int, trader_id: int, target_date: str, schedule_data: str, is_not_working: bool) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
+        # Delete existing schedule for the same object and date to prevent duplicates
+        await db.execute("DELETE FROM trader_schedules WHERE object_id = ? AND target_date = ?", (object_id, target_date))
         cursor = await db.execute("INSERT INTO trader_schedules (object_id, trader_id, target_date, schedule_json, is_not_working) VALUES (?, ?, ?, ?, ?)", (object_id, trader_id, target_date, schedule_data, 1 if is_not_working else 0))
         last_id = cursor.lastrowid
         await db.commit()

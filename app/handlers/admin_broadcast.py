@@ -56,7 +56,7 @@ async def callback_broadcast_menu(callback: CallbackQuery, state: FSMContext):
 async def start_broadcast_creation(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BroadcastState.waiting_for_content)
     await callback.message.answer(
-        "📝 <b>Надішліть текст розсилки.</b>\n\nМожна додати одну картинку до повідомлення. "
+        "📝 <b>Надішліть текст розсилки.</b>\n\nМожна додати один файл (картинку, PDF або Word) до повідомлення. "
         "Коли будете готові, бот покаже передперегляд.",
         reply_markup=get_simple_cancel_kb(),
         parse_mode="HTML"
@@ -72,12 +72,13 @@ async def process_broadcast_content(message: Message, state: FSMContext):
 
     text = message.text or message.caption
     photo_id = message.photo[-1].file_id if message.photo else None
+    document_id = message.document.file_id if message.document else None
     
-    if not text and not photo_id:
-        await message.answer("⚠️ Повідомлення порожнє. Будь ласка, надішліть текст або фото з текстом.")
+    if not text and not photo_id and not document_id:
+        await message.answer("⚠️ Повідомлення порожнє. Будь ласка, надішліть текст, фото або документ.")
         return
 
-    await state.update_data(bc_text=text, bc_photo=photo_id)
+    await state.update_data(bc_text=text, bc_photo=photo_id, bc_document=document_id)
     
     # NEW: Transition to object selection instead of preview
     objects = await get_all_objects()
@@ -154,6 +155,7 @@ async def broadcast_preview_step(callback: CallbackQuery, state: FSMContext):
 
     text = data.get("bc_text")
     photo_id = data.get("bc_photo")
+    document_id = data.get("bc_document")
     
     await state.set_state(BroadcastState.confirming)
     
@@ -165,6 +167,8 @@ async def broadcast_preview_step(callback: CallbackQuery, state: FSMContext):
     
     if photo_id:
         await callback.message.answer_photo(photo=photo_id, caption=text, reply_markup=get_broadcast_preview_kb(), parse_mode="HTML")
+    elif document_id:
+        await callback.message.answer_document(document=document_id, caption=text, reply_markup=get_broadcast_preview_kb(), parse_mode="HTML")
     else:
         await callback.message.answer(text, reply_markup=get_broadcast_preview_kb(), parse_mode="HTML")
     
@@ -175,6 +179,7 @@ async def send_broadcast_logic(callback: CallbackQuery, state: FSMContext, bot: 
     data = await state.get_data()
     text = data.get("bc_text")
     photo_id = data.get("bc_photo")
+    document_id = data.get("bc_document")
     target_groups = data.get("selected_object_ids", [])
     pin_mode = callback.data.split(":")[1] == "pinned"
     
@@ -183,7 +188,7 @@ async def send_broadcast_logic(callback: CallbackQuery, state: FSMContext, bot: 
         return
 
     # 1. Create broadcast in DB
-    bc_id = await create_broadcast(callback.from_user.id, text, photo_id)
+    bc_id = await create_broadcast(callback.from_user.id, text, photo_id, document_id)
     
     await callback.message.edit_reply_markup(reply_markup=None)
     status_msg = await callback.message.answer(f"🚀 Починаю розсилку на {len(target_groups)} груп...")
@@ -193,6 +198,8 @@ async def send_broadcast_logic(callback: CallbackQuery, state: FSMContext, bot: 
         try:
             if photo_id:
                 sent = await bot.send_photo(chat_id=group_id, photo=photo_id, caption=text, parse_mode="HTML")
+            elif document_id:
+                sent = await bot.send_document(chat_id=group_id, document=document_id, caption=text, parse_mode="HTML")
             else:
                 sent = await bot.send_message(chat_id=group_id, text=text, parse_mode="HTML")
             
@@ -273,7 +280,7 @@ async def edit_broadcast_start(callback: CallbackQuery, state: FSMContext):
     await state.update_data(editing_bc_id=bc_id)
     await state.set_state(BroadcastState.editing_existing)
     await callback.message.answer(
-        "✏️ <b>Введіть новий текст для розсилки.</b>\nФото залишиться тим самим.",
+        "✏️ <b>Введіть новий текст для розсилки.</b>\nМедіавкладення залишиться тим самим.",
         reply_markup=get_simple_cancel_kb(),
         parse_mode="HTML"
     )
@@ -298,7 +305,7 @@ async def process_broadcast_edit_text(message: Message, state: FSMContext, bot: 
     success_count = 0
     for m in msgs:
         try:
-            if bc['photo_id']:
+            if bc.get('photo_id') or bc.get('document_id'):
                 await bot.edit_message_caption(chat_id=m['chat_id'], message_id=m['message_id'], caption=new_text, parse_mode="HTML")
             else:
                 await bot.edit_message_text(chat_id=m['chat_id'], message_id=m['message_id'], text=new_text, parse_mode="HTML")

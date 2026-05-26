@@ -233,11 +233,18 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
               </p>
             </div>
           </div>
-          <div className="w-full h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mt-3 overflow-hidden">
+          <div className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-full mt-3 overflow-hidden border border-slate-300/30 dark:border-slate-700/50">
             <motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${data.load_power_percent || 0}%` }}
-              className={`h-full ${Number(data.load_power_percent) > 90 ? 'bg-rose-500' : 'bg-[#004899]'}`}
+              className={`h-full rounded-full ${(() => {
+                const percent = Number(data.load_power_percent || 0);
+                if (percent === 0) return 'bg-slate-300 dark:bg-slate-700';
+                if (percent < 40) return 'bg-gradient-to-r from-emerald-500 to-teal-600';
+                if (percent < 75) return 'bg-gradient-to-r from-[#003366] via-[#004899] to-[#0070f3]';
+                if (percent < 90) return 'bg-gradient-to-r from-[#004899] via-amber-500 to-orange-500';
+                return 'bg-gradient-to-r from-amber-500 to-rose-600';
+              })()}`}
             />
           </div>
         </div>

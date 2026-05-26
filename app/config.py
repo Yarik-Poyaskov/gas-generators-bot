@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     trader_monitor_group_id: int = Field(None, description="Group ID where traders send schedules")
     group_id: int = Field(..., description="Group ID for sending reports")
     special_group_id: int = Field(None, description="Special Group ID for simplified reports")
+    obh_special_group_id: int | None = Field(None, description="Special Group ID for OBH GPU reports")
     test_special_group_id: int = Field(None, description="Test Special Group ID for image reports")
     summary_report_time: str = Field("09:40", description="HH:MM for summary report")
     db_url: str = "sqlite+aiosqlite:///reports.db"

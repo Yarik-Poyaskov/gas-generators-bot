@@ -60,7 +60,10 @@ async def init_db():
         await db.execute("CREATE TABLE IF NOT EXISTS web_auth_codes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id BIGINT NOT NULL, code TEXT NOT NULL, expires_at DATETIME NOT NULL)")
         await db.execute("CREATE TABLE IF NOT EXISTS trader_announcements (id INTEGER PRIMARY KEY AUTOINCREMENT, trader_id BIGINT NOT NULL, target_date TEXT NOT NULL, chat_id BIGINT NOT NULL, message_id BIGINT NOT NULL, object_id INTEGER, message_type TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
         await db.execute("CREATE TABLE IF NOT EXISTS schedule_reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, schedule_id INTEGER NOT NULL, chat_id BIGINT NOT NULL, message_id BIGINT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (schedule_id) REFERENCES trader_schedules (id) ON DELETE CASCADE)")
-        await db.execute("CREATE TABLE IF NOT EXISTS broadcasts (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id BIGINT NOT NULL, text TEXT, photo_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+        await db.execute("CREATE TABLE IF NOT EXISTS broadcasts (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id BIGINT NOT NULL, text TEXT, photo_id TEXT, document_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+        try:
+            await db.execute("ALTER TABLE broadcasts ADD COLUMN document_id TEXT")
+        except: pass
         await db.execute("CREATE TABLE IF NOT EXISTS broadcast_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, broadcast_id INTEGER NOT NULL, chat_id BIGINT NOT NULL, message_id BIGINT NOT NULL, is_pinned BOOLEAN DEFAULT 0, FOREIGN KEY (broadcast_id) REFERENCES broadcasts (id) ON DELETE CASCADE)")
         
         # Surveys (Опитувальники)
@@ -698,9 +701,9 @@ async def get_unlinked_groups():
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-async def create_broadcast(admin_id: int, text: str, photo_id: Optional[str] = None) -> int:
+async def create_broadcast(admin_id: int, text: str, photo_id: Optional[str] = None, document_id: Optional[str] = None) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("INSERT INTO broadcasts (admin_id, text, photo_id) VALUES (?, ?, ?)", (admin_id, text, photo_id))
+        cursor = await db.execute("INSERT INTO broadcasts (admin_id, text, photo_id, document_id) VALUES (?, ?, ?, ?)", (admin_id, text, photo_id, document_id))
         last_id = cursor.lastrowid
         await db.commit()
         return last_id

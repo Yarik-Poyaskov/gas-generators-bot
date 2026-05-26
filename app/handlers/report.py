@@ -861,6 +861,11 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
         special_summary = "\n".join([line for line in group_summary.split("\n") if "Заповнив:" not in line])
         await deliver(config.special_group_id, custom_text=special_summary)
 
+    # 4. Дополнительно шлем отчеты по OBH GPU в отдельный канал директора
+    is_obh = data.get('obj_id') == 1 or "OBH" in str(data.get('tc_name', ''))
+    if is_obh and config.obh_special_group_id:
+        await deliver(config.obh_special_group_id)
+
     await callback.message.edit_text("✅ Звіт успішно збережено!")
     await callback.message.answer("Ви в головному меню.", reply_markup=get_main_menu_keyboard(is_admin=is_admin, role=role))
     await callback.answer()

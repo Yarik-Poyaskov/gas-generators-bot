@@ -176,8 +176,19 @@ export default function GPUCardCompact({ data, isNew }: GPUCardProps) {
           </span>
           <span className="text-[10px] font-black text-[#004899] dark:text-blue-400">{data.load_power_kw || 0} кВт</span>
         </div>
-        <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-          <motion.div initial={{ width: 0 }} animate={{ width: `${data.load_power_percent || 0}%` }} className={`h-full ${Number(data.load_power_percent) > 90 ? 'bg-rose-500' : 'bg-[#004899]'}`} />
+        <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300/20 dark:border-slate-700/40">
+          <motion.div 
+            initial={{ width: 0 }} 
+            animate={{ width: `${data.load_power_percent || 0}%` }} 
+            className={`h-full rounded-full ${(() => {
+              const percent = Number(data.load_power_percent || 0);
+              if (percent === 0) return 'bg-slate-300 dark:bg-slate-700';
+              if (percent < 40) return 'bg-gradient-to-r from-emerald-500 to-teal-600';
+              if (percent < 75) return 'bg-gradient-to-r from-[#003366] via-[#004899] to-[#0070f3]';
+              if (percent < 90) return 'bg-gradient-to-r from-[#004899] via-amber-500 to-orange-500';
+              return 'bg-gradient-to-r from-amber-500 to-rose-600';
+            })()}`} 
+          />
         </div>
       </div>
 

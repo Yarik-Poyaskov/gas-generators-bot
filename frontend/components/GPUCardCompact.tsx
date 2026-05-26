@@ -23,9 +23,10 @@ import { useState } from 'react';
 interface GPUCardProps {
   data: ObjectInfo;
   isNew?: boolean;
+  onShowChecklist?: (objectId: number) => void;
 }
 
-export default function GPUCardCompact({ data, isNew }: GPUCardProps) {
+export default function GPUCardCompact({ data, isNew, onShowChecklist }: GPUCardProps) {
   const [openSection, setOpenSection] = useState<'none' | 'schedule' | 'last_report' | 'shift'>('none');
 
   const toggleSection = (section: 'schedule' | 'last_report' | 'shift') => {
@@ -254,6 +255,12 @@ export default function GPUCardCompact({ data, isNew }: GPUCardProps) {
                     <span className="font-black text-slate-400 uppercase tracking-tighter">Час:</span>
                     <span className="font-black text-slate-700 dark:text-slate-200">{data.start_time || '—'}</span>
                   </div>
+                  <button
+                    onClick={() => onShowChecklist && onShowChecklist(data.id)}
+                    className="w-full flex items-center justify-center gap-1.5 mt-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 rounded-lg transition-colors border border-slate-200/50 dark:border-slate-700/50"
+                  >
+                    <FileText className="w-3 h-3" /> Детальний Чек-лист
+                  </button>
                 </div>
               )}
 

@@ -28,8 +28,14 @@ export default function DashboardLayout({
       router.push('/login');
     } else {
       setLoading(false);
-      const saved = localStorage.getItem('sidebar_collapsed');
-      if (saved === 'true') setIsCollapsed(true);
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth < 1024) {
+          setIsCollapsed(true);
+        } else {
+          const saved = localStorage.getItem('sidebar_collapsed');
+          if (saved === 'true') setIsCollapsed(true);
+        }
+      }
     }
   }, [router]);
 

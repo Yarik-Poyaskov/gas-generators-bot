@@ -67,8 +67,77 @@ export default function SummaryPowerPage() {
           </div>
         </div>
 
-        {/* Table Section */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        {/* Mobile Cards (Visible on mobile only) */}
+        <div className="block md:hidden space-y-4">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/3"></div>
+                <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-1/2"></div>
+                <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-2/3"></div>
+              </div>
+            ))
+          ) : data.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 italic">
+              Звітів за сьогодні поки немає
+            </div>
+          ) : (
+            data.map((item, index) => (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={item.tc_name}
+                className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 w-5 h-5 rounded-full flex items-center justify-center">
+                      {index + 1}
+                    </span>
+                    <span className="font-black text-sm text-slate-900 dark:text-white leading-none">
+                      {item.tc_name.match(/\((.*?)\)/)?.[1] || item.tc_name}
+                    </span>
+                  </div>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black border ${getStatusStyle(item.gpu_status)}`}>
+                    {item.gpu_status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Режим</span>
+                    <span className="font-semibold text-slate-850 dark:text-slate-200">{item.work_mode || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Час запуску</span>
+                    <span className="font-semibold text-slate-850 dark:text-slate-200">{item.start_time || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Навантаження</span>
+                    <span className="font-black text-[#004899] dark:text-blue-400">
+                      {item.load_power_percent}% <span className="text-[10px] text-slate-400 font-bold">({item.load_power_kw} кВт)</span>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Вироблено (всього)</span>
+                    <span className="font-semibold text-slate-850 dark:text-slate-200 flex items-center gap-1">
+                      <BarChart3 className="w-3.5 h-3.5 text-blue-500" /> {item.total_mwh} МВт*год
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Напрацювання (всього)</span>
+                    <span className="font-semibold text-slate-850 dark:text-slate-200 flex items-center gap-1">
+                      <Activity className="w-3.5 h-3.5 text-amber-500" /> {item.total_hours} м/год
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+
+        {/* Table Section (Visible on desktop only) */}
+        <div className="hidden md:block bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
@@ -87,14 +156,14 @@ export default function SummaryPowerPage() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="animate-pulse">
-                      <td colSpan={7} className="px-6 py-8">
+                      <td colSpan={8} className="px-6 py-8">
                         <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded-full w-full"></div>
                       </td>
                     </tr>
                   ))
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-medium italic">
+                    <td colSpan={8} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-medium italic">
                       Звітів за сьогодні поки немає
                     </td>
                   </tr>

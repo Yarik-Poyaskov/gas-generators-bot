@@ -67,8 +67,86 @@ export default function SummaryShiftsPage() {
           </div>
         </div>
 
-        {/* Table Section */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        {/* Mobile Cards (Visible on mobile only) */}
+        <div className="block md:hidden space-y-4">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/3"></div>
+                <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-1/2"></div>
+                <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-2/3"></div>
+              </div>
+            ))
+          ) : data.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 italic">
+              Звітів за сьогодні поки немає
+            </div>
+          ) : (
+            data.map((item, index) => (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={item.tc_name}
+                className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 w-5 h-5 rounded-full flex items-center justify-center">
+                      {index + 1}
+                    </span>
+                    <span className="font-black text-sm text-slate-900 dark:text-white leading-none">
+                      {item.tc_name.match(/\((.*?)\)/)?.[1] || item.tc_name}
+                    </span>
+                  </div>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black border ${getStatusStyle(item.gpu_status)}`}>
+                    {item.gpu_status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Режим</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{item.work_mode || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Час запуску</span>
+                    <span className="font-black text-slate-800 dark:text-slate-200">{item.start_time || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Навантаження</span>
+                    <span className="font-black text-[#004899] dark:text-blue-400">
+                      {item.load_power_percent}% <span className="text-[10px] text-slate-400 font-bold">({item.load_power_kw} кВт)</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-850/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-200/50 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Черговий:</span>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate">
+                      {item.duty_info.split('(')[0].trim()}
+                    </span>
+                    {item.duty_info.includes('(') && (
+                      <a 
+                        href={`tel:${item.duty_info.match(/\((.*?)\)/)?.[1] || ''}`}
+                        className="text-[10px] font-bold text-[#004899] dark:text-blue-400 flex items-center gap-1 hover:underline mt-0.5"
+                      >
+                        <Phone className="w-2.5 h-2.5" />
+                        {item.duty_info.match(/\((.*?)\)/)?.[1] || '—'}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+
+        {/* Table Section (Visible on desktop only) */}
+        <div className="hidden md:block bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
@@ -86,15 +164,15 @@ export default function SummaryShiftsPage() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="animate-pulse">
-                      <td colSpan={6} className="px-6 py-8">
+                      <td colSpan={7} className="px-6 py-8">
                         <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded-full w-full"></div>
                       </td>
                     </tr>
                   ))
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-medium italic">
-                      Звітів за сьогодні поки немає
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-medium italic">
+                      Звітів за сегодня поки немає
                     </td>
                   </tr>
                 ) : (

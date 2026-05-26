@@ -16,7 +16,8 @@ from app.api.models import (
 from app.db.database import (
     get_objects_with_latest_status, get_all_objects,
     get_recent_reports, get_reports_by_range,
-    add_trader_schedule, add_trader_announcement
+    add_trader_schedule, add_trader_announcement,
+    get_latest_checklist_for_object
 )
 from app.config import config
 
@@ -259,3 +260,32 @@ async def export_reports(start_date: str, end_date: str, current_user: dict = De
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+@router.get("/objects/{object_id}/latest-checklist")
+async def get_object_latest_checklist(object_id: int, current_user: dict = Depends(get_current_user)):
+    """Returns the latest full checklist for an object and whether it is from today."""
+    res = await get_latest_checklist_for_object(object_id)
+    return res
+
+@router.get("/media/{file_id}")
+async def get_telegram_media(file_id: str, current_user: dict = Depends(get_current_user)):
+    """Downloads a photo/document from Telegram by file_id and returns the stream."""
+    from app.api.auth import bot_instance
+    if not bot_instance:
+        raise HTTPException(status_code=500, detail="Bot instance not initialized")
+    try:
+        file_info = await bot_instance.get_file(file_id)
+        # Download the file content
+        import io
+        out = io.BytesIO()
+        await bot_instance.download_file(file_info.file_path, out)
+        out.seek(0)
+        
+        # Determine media type from file extension
+        ext = file_info.file_path.split('.')[-1].lower() if '.' in file_info.file_path else 'jpg'
+        media_type = f"image/{ext}" if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else "application/octet-stream"
+        
+        return StreamingResponse(out, media_type=media_type)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch media from Telegram: {str(e)}")
+

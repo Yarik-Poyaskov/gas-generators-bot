@@ -14,7 +14,8 @@ import {
   History,
   Calendar,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
@@ -22,9 +23,10 @@ import { useState } from 'react';
 interface GPUCardProps {
   data: ObjectInfo;
   isNew?: boolean;
+  onShowChecklist?: (objectId: number) => void;
 }
 
-export default function GPUCard({ data, isNew }: GPUCardProps) {
+export default function GPUCard({ data, isNew, onShowChecklist }: GPUCardProps) {
   const [showSchedule, setShowSchedule] = useState(false);
 
   const getStatusColor = () => {
@@ -334,16 +336,25 @@ export default function GPUCard({ data, isNew }: GPUCardProps) {
         </AnimatePresence>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-start gap-3">
-        <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 transition-colors">
-          {data.reported_by ? data.reported_by[0] : '?'}
+      <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 transition-colors">
+            {data.reported_by ? data.reported_by[0] : '?'}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Останній звіт:</span>
+            <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 leading-tight truncate max-w-[140px]">
+              {data.reported_by || 'Система'} {data.is_inherited && <span className="text-[9px] text-amber-500 font-bold ml-1">(перехідний)</span>}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col min-w-0">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Останній звіт:</span>
-          <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 leading-tight">
-            {data.reported_by || 'Система'} {data.is_inherited && <span className="text-[9px] text-amber-500 font-bold ml-1">(перехідний)</span>}
-          </span>
-        </div>
+        <button
+          onClick={() => onShowChecklist && onShowChecklist(data.id)}
+          className="flex items-center justify-center p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all border border-slate-200 dark:border-slate-800 shrink-0"
+          title="Переглянути Чек-лист"
+        >
+          <ClipboardList className="w-4 h-4" />
+        </button>
       </div>
     </motion.div>
   );

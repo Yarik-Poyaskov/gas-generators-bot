@@ -364,6 +364,56 @@ async def get_reports_by_range(start_date: str, end_date: str):
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
+async def get_latest_checklist_for_object(object_id: int):
+    """Returns the latest full checklist (is_short=0) for a given object.
+    Checks if it was created today (Europe/Kiev).
+    """
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    KYIV_TZ = ZoneInfo("Europe/Kiev")
+    now_kyiv = datetime.now(KYIV_TZ)
+
+    obj = await get_object_by_id(object_id)
+    if not obj:
+        return {"has_report": False}
+
+    obj_name = obj["name"]
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        query = """
+            SELECT * FROM reports 
+            WHERE tc_name LIKE '%' || ? || '%' AND is_short = 0
+            ORDER BY created_at DESC LIMIT 1
+        """
+        cursor = await db.execute(query, (obj_name,))
+        row = await cursor.fetchone()
+        if not row:
+            return {"has_report": False}
+
+        report = dict(row)
+        
+        # Determine if report was created today (Europe/Kiev)
+        # created_at is stored in UTC
+        try:
+            created_at_utc = datetime.fromisoformat(report["created_at"].replace(" ", "T"))
+            created_at_utc = created_at_utc.replace(tzinfo=timezone.utc)
+            created_at_kyiv = created_at_utc.astimezone(KYIV_TZ)
+            is_today = created_at_kyiv.date() == now_kyiv.date()
+        except Exception as e:
+            logging.error(f"Error parsing report created_at: {e}")
+            is_today = False
+
+        return {
+            "has_report": True,
+            "is_today": is_today,
+            "report": report
+        }
+
 # --- User Functions ---
 
 async def get_user(user_id: int):

@@ -9,6 +9,7 @@ import api from '@/lib/api';
 import { authService } from '@/lib/auth-service';
 import { LayoutGrid, List, RefreshCw, Loader2, Search as SearchIcon, SortAsc, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ChecklistModal from '@/components/ChecklistModal';
 
 type SortOption = 'alphabetical' | 'status' | 'power' | 'last_report';
 
@@ -24,6 +25,10 @@ export default function Dashboard() {
   const [showSortMenu, setShowSortBy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'stable' | 'stopped' | 'emergency'>('all');
+  
+  const [selectedObjId, setSelectedObjId] = useState<number | null>(null);
+  const [selectedObjName, setSelectedObjName] = useState<string | null>(null);
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false);
 
   // Logic for "Smart Delay" (Freezing position during status change)
   const [frozenIds, setFrozenIds] = useState<Record<number, ObjectInfo>>({});
@@ -232,7 +237,7 @@ export default function Dashboard() {
       searchQuery={searchQuery}
       setSearchQuery={setSearchQuery}
       headerCenterContent={
-        <div className="flex items-center gap-4 lg:gap-8">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="flex flex-col">
               <h1 className="text-sm font-black text-slate-900 dark:text-white leading-none tracking-tight flex items-center gap-2">
@@ -243,101 +248,199 @@ export default function Dashboard() {
                 {lastUpdated.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
               </p>
             </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden lg:block" />
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-inner">
-            {[
-              { id: 'all', label: 'Усього', value: objects.length, color: 'blue', bg: 'bg-blue-500' },
-              { id: 'stable', label: 'Робота', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна')).length, color: 'green', bg: 'bg-emerald-500' },
-              { id: 'stopped', label: 'Стоп', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює')).length, color: 'red', bg: 'bg-rose-500' },
-              { id: 'emergency', label: 'Аварія', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('аварі') || (o.gpu_status || '').toLowerCase().includes('не готова')).length, color: 'orange', bg: 'bg-amber-500' },
-            ].map((stat) => (
-              <button 
-                key={stat.id} 
-                onClick={() => setStatusFilter(stat.id as any)}
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all group relative ${statusFilter === stat.id ? 'bg-white dark:bg-slate-700 shadow-md scale-105 ring-1 ring-black/5' : 'hover:bg-white/50 dark:hover:bg-slate-800 opacity-70 hover:opacity-100'}`}
-              >
-                <div className={`w-2 h-2 rounded-full ${stat.bg} shadow-sm shadow-black/10`} />
-                <span className={`text-xs font-black ${stat.color === 'green' ? 'text-emerald-600' : stat.color === 'red' ? 'text-rose-600' : stat.color === 'orange' ? 'text-amber-600' : 'text-[#004899]'}`}>
-                  {stat.value}
-                </span>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block bg-slate-800 text-white text-[9px] px-2 py-1 rounded-lg shadow-2xl whitespace-nowrap z-50 border border-slate-700">
-                  {stat.label}
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block" />
-
-          <div className="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
-            <div className="relative">
-              <button 
-                onClick={() => setShowSortBy(!showSortMenu)}
-                className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
-                title="Сортування"
-              >
-                <SortAsc className="h-4 w-4" />
-              </button>
-              <AnimatePresence>
-                {showSortMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowSortBy(false)} />
-                    <motion.div 
-                      initial={{ opacity: 0, y: 5, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                      className="absolute left-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 py-1.5 z-20 overflow-hidden"
-                    >
-                      {(Object.keys(sortLabels) as SortOption[]).map((option) => (
-                        <button
-                          key={option}
-                          onClick={() => { setSortBy(option); setShowSortBy(false); }}
-                          className={`w-full text-left px-4 py-2 text-[11px] font-bold transition-colors ${sortBy === option ? 'text-[#004899] bg-blue-50 dark:bg-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                        >
-                          {sortLabels[option]}
-                        </button>
-                      ))}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
+          <div className="hidden lg:flex items-center gap-4">
+            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-3" />
+            
+            <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-inner">
+              {[
+                { id: 'all', label: 'Усього', value: objects.length, color: 'blue', bg: 'bg-blue-500' },
+                { id: 'stable', label: 'Робота', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна')).length, color: 'green', bg: 'bg-emerald-500' },
+                { id: 'stopped', label: 'Стоп', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює')).length, color: 'red', bg: 'bg-rose-500' },
+                { id: 'emergency', label: 'Аварія', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('аварі') || (o.gpu_status || '').toLowerCase().includes('не готова')).length, color: 'orange', bg: 'bg-amber-500' },
+              ].map((stat) => (
+                <button 
+                  key={stat.id} 
+                  onClick={() => setStatusFilter(stat.id as any)}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all group relative ${statusFilter === stat.id ? 'bg-white dark:bg-slate-700 shadow-md scale-105 ring-1 ring-black/5' : 'hover:bg-white/50 dark:hover:bg-slate-800 opacity-70 hover:opacity-100'}`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${stat.bg} shadow-sm shadow-black/10`} />
+                  <span className={`text-xs font-black ${stat.color === 'green' ? 'text-emerald-600' : stat.color === 'red' ? 'text-rose-600' : stat.color === 'orange' ? 'text-amber-600' : 'text-[#004899]'}`}>
+                    {stat.value}
+                  </span>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block bg-slate-800 text-white text-[9px] px-2 py-1 rounded-lg shadow-2xl whitespace-nowrap z-50 border border-slate-700">
+                    {stat.label}
+                  </div>
+                </button>
+              ))}
             </div>
 
-            <button 
-              onClick={() => handleViewChange(viewType === 'grid' ? 'list' : 'grid')}
-              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
-              title={viewType === 'grid' ? 'Список' : 'Плитка'}
-            >
-              {viewType === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-            </button>
+            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-3" />
 
-            {viewType === 'grid' && (
+            <div className="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+              <div className="relative">
+                <button 
+                  onClick={() => setShowSortBy(!showSortMenu)}
+                  className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+                  title="Сортування"
+                >
+                  <SortAsc className="h-4 w-4" />
+                </button>
+                <AnimatePresence>
+                  {showSortMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowSortBy(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                        className="absolute left-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 py-1.5 z-20 overflow-hidden"
+                      >
+                        {(Object.keys(sortLabels) as SortOption[]).map((option) => (
+                          <button
+                            key={option}
+                            onClick={() => { setSortBy(option); setShowSortBy(false); }}
+                            className={`w-full text-left px-4 py-2 text-[11px] font-bold transition-colors ${sortBy === option ? 'text-[#004899] bg-blue-50 dark:bg-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                          >
+                            {sortLabels[option]}
+                          </button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <button 
-                onClick={() => {
-                  const nextMode = cardViewMode === 'compact' ? 'full' : 'compact';
-                  setCardViewMode(nextMode);
-                  localStorage.setItem('dashboard_card_mode', nextMode);
-                }}
+                onClick={() => handleViewChange(viewType === 'grid' ? 'list' : 'grid')}
                 className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
-                title={cardViewMode === 'compact' ? 'Повний вигляд' : 'Компактний вигляд'}
+                title={viewType === 'grid' ? 'Список' : 'Плитка'}
               >
-                {cardViewMode === 'compact' ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+                {viewType === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
               </button>
-            )}
 
-            <button 
-              onClick={() => {setLoading(true); fetchObjects();}}
-              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-[#004899] transition-all group"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-            </button>
+              {viewType === 'grid' && (
+                <button 
+                  onClick={() => {
+                    const nextMode = cardViewMode === 'compact' ? 'full' : 'compact';
+                    setCardViewMode(nextMode);
+                    localStorage.setItem('dashboard_card_mode', nextMode);
+                  }}
+                  className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+                  title={cardViewMode === 'compact' ? 'Повний вигляд' : 'Компактний вигляд'}
+                >
+                  {cardViewMode === 'compact' ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+                </button>
+              )}
+
+              <button 
+                onClick={() => {setLoading(true); fetchObjects();}}
+                className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-[#004899] transition-all group"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+              </button>
+            </div>
           </div>
         </div>
       }
     >
       <div className="flex flex-col gap-6">
+        {/* Mobile controls row - visible only on screens < 1024px */}
+        <div className="flex lg:hidden flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md">
+          {/* Mobile search input */}
+          <div className="relative group w-full">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <SearchIcon className="h-4 w-4 text-slate-400 group-focus-within:text-[#004899] transition-colors" />
+            </div>
+            <input
+              type="text"
+              placeholder="Пошук об'єктів..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="block w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-900 border-2 border-transparent focus:border-[#004899]/20 focus:bg-white dark:focus:bg-slate-950 rounded-xl transition-all text-xs font-bold text-slate-900 dark:text-white outline-none"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Filters */}
+            <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-inner">
+              {[
+                { id: 'all', label: 'Усього', value: objects.length, color: 'blue', bg: 'bg-blue-500' },
+                { id: 'stable', label: 'Робота', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('стабільна')).length, color: 'green', bg: 'bg-emerald-500' },
+                { id: 'stopped', label: 'Стоп', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('не працює')).length, color: 'red', bg: 'bg-rose-500' },
+                { id: 'emergency', label: 'Аварія', value: objects.filter(o => (o.gpu_status || '').toLowerCase().includes('аварі') || (o.gpu_status || '').toLowerCase().includes('не готова')).length, color: 'orange', bg: 'bg-amber-500' },
+              ].map((stat) => (
+                <button 
+                  key={stat.id} 
+                  onClick={() => setStatusFilter(stat.id as any)}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl transition-all ${statusFilter === stat.id ? 'bg-white dark:bg-slate-750 shadow-sm scale-105 shadow-black/5 border border-slate-200 dark:border-slate-700' : 'opacity-70'}`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${stat.bg}`} />
+                  <span className={`text-[10px] font-black ${stat.color === 'green' ? 'text-emerald-600' : stat.color === 'red' ? 'text-rose-600' : stat.color === 'orange' ? 'text-amber-600' : 'text-[#004899]'}`}>
+                    {stat.value}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* View/Sorting controls */}
+            <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/40 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+              <div className="relative">
+                <button 
+                  onClick={() => setShowSortBy(!showSortMenu)}
+                  className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+                  title="Сортування"
+                >
+                  <SortAsc className="h-4 w-4" />
+                </button>
+                {showSortMenu && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setShowSortBy(false)} />
+                    <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-800 py-1 z-30">
+                      {(Object.keys(sortLabels) as SortOption[]).map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => { setSortBy(option); setShowSortBy(false); }}
+                          className={`w-full text-left px-3 py-1.5 text-[10px] font-bold ${sortBy === option ? 'text-[#004899] bg-blue-50 dark:bg-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                        >
+                          {sortLabels[option]}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <button 
+                onClick={() => handleViewChange(viewType === 'grid' ? 'list' : 'grid')}
+                className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+              >
+                {viewType === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+              </button>
+
+              {viewType === 'grid' && (
+                <button 
+                  onClick={() => {
+                    const nextMode = cardViewMode === 'compact' ? 'full' : 'compact';
+                    setCardViewMode(nextMode);
+                  }}
+                  className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+                >
+                  {cardViewMode === 'compact' ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+                </button>
+              )}
+
+              <button 
+                onClick={() => {setLoading(true); fetchObjects();}}
+                className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-[#004899]"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+
         <AnimatePresence mode="wait">
           {loading && objects.length === 0 ? (
             <motion.div 
@@ -365,12 +468,24 @@ export default function Dashboard() {
                     key={obj.id} 
                     data={obj} 
                     isNew={newReportId === obj.id}
+                    onShowChecklist={(id) => {
+                      const target = objects.find(o => o.id === id);
+                      setSelectedObjId(id);
+                      setSelectedObjName(target ? target.name : null);
+                      setIsChecklistOpen(true);
+                    }}
                   />
                 ) : (
                   <GPUCard 
                     key={obj.id} 
                     data={obj} 
                     isNew={newReportId === obj.id}
+                    onShowChecklist={(id) => {
+                      const target = objects.find(o => o.id === id);
+                      setSelectedObjId(id);
+                      setSelectedObjName(target ? target.name : null);
+                      setIsChecklistOpen(true);
+                    }}
                   />
                 )
               ))}
@@ -454,6 +569,13 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      <ChecklistModal 
+        objectId={selectedObjId}
+        objectName={selectedObjName}
+        isOpen={isChecklistOpen}
+        onClose={() => setIsChecklistOpen(false)}
+      />
     </DashboardLayout>
   );
 }

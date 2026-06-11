@@ -202,8 +202,10 @@ async def export_reports(start_date: str, end_date: str, current_user: dict = De
     headers = [
         "ID", "Дата/Час", "Об'єкт", "Заповнив", "Режим", "Час", 
         "Потужність (%)", "Потужність (кВт)", "Статус ГПУ", 
-        "Напруга АКБ", "Тиск (До)", "Тиск (Після)", 
-        "МВт*год (всього)", "Мотогодини", "Олива (ліміт)", "Тип часу"
+        "Напруга АКБ", "Тиск і/к (До)", "Тиск і/к (Після)", 
+        "Тиск двиг. (До)", "Тиск двиг. (Після)", "АКБ HAAS",
+        "МВт*год (всього)", "Мотогодини", "Олива (ліміт)", 
+        "Мастило підшип.", "Тип часу"
     ]
     
     # Header styling
@@ -229,12 +231,16 @@ async def export_reports(start_date: str, end_date: str, current_user: dict = De
         ws.cell(row=row_idx, column=8, value=r["load_power_kw"])
         ws.cell(row=row_idx, column=9, value=r["gpu_status"])
         ws.cell(row=row_idx, column=10, value=r["battery_voltage"])
-        ws.cell(row=row_idx, column=11, value=r["pressure_before"])
-        ws.cell(row=row_idx, column=12, value=r["pressure_after"])
-        ws.cell(row=row_idx, column=13, value=r["total_mwh"])
-        ws.cell(row=row_idx, column=14, value=r["total_hours"])
-        ws.cell(row=row_idx, column=15, value=r["oil_sampling_limit"])
-        ws.cell(row=row_idx, column=16, value=r["time_type"])
+        ws.cell(row=row_idx, column=11, value=r["pressure_intercooler_before"])
+        ws.cell(row=row_idx, column=12, value=r["pressure_intercooler_after"])
+        ws.cell(row=row_idx, column=13, value=r["pressure_engine_before"])
+        ws.cell(row=row_idx, column=14, value=r["pressure_engine_after"])
+        ws.cell(row=row_idx, column=15, value=r["battery_voltage_haas"])
+        ws.cell(row=row_idx, column=16, value=r["total_mwh"])
+        ws.cell(row=row_idx, column=17, value=r["total_hours"])
+        ws.cell(row=row_idx, column=18, value=r["oil_sampling_limit"])
+        ws.cell(row=row_idx, column=19, value=r["bearing_lubrication_limit"])
+        ws.cell(row=row_idx, column=20, value=r["time_type"])
 
     # Auto-adjust column width
     for column in ws.columns:

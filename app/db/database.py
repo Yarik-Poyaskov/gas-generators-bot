@@ -31,6 +31,13 @@ async def init_db():
                 photo_multimeter_id TEXT,
                 photo_shos_id TEXT,
                 time_type TEXT,
+                is_short INTEGER DEFAULT 0,
+                pressure_intercooler_before REAL,
+                pressure_intercooler_after TEXT,
+                pressure_engine_before REAL,
+                pressure_engine_after TEXT,
+                battery_voltage_haas TEXT,
+                bearing_lubrication_limit REAL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -155,8 +162,11 @@ async def add_report(data: Dict[str, Any]):
                 load_power_percent, load_power_kw,
                 gpu_status, battery_voltage, pressure_before, pressure_after,
                 total_mwh, total_hours, oil_sampling_limit,
-                photo_multimeter_id, photo_shos_id, time_type, is_short
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                photo_multimeter_id, photo_shos_id, time_type, is_short,
+                pressure_intercooler_before, pressure_intercooler_after,
+                pressure_engine_before, pressure_engine_after,
+                battery_voltage_haas, bearing_lubrication_limit
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.get("user_id"), data.get("username"), data.get("full_name"),
@@ -166,7 +176,10 @@ async def add_report(data: Dict[str, Any]):
                 data.get("pressure_before"), data.get("pressure_after"),
                 data.get("total_mwh"), data.get("total_hours"),
                 data.get("oil_sampling_limit"), data.get("photo_multimeter_id"),
-                data.get("photo_shos_id"), time_type, 1 if data.get("is_short") else 0
+                data.get("photo_shos_id"), time_type, 1 if data.get("is_short") else 0,
+                data.get("pressure_intercooler_before"), data.get("pressure_intercooler_after"),
+                data.get("pressure_engine_before"), data.get("pressure_engine_after"),
+                data.get("battery_voltage_haas"), data.get("bearing_lubrication_limit")
             ),
         )
         await db.commit()

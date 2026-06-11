@@ -578,11 +578,15 @@ def get_report_fields_kb(report: dict) -> InlineKeyboardMarkup:
         ('start_time', 'Час запуску'),
         ('gpu_status', 'Статус ГПУ'),
         ('battery_voltage', 'Напруга АКБ'),
-        ('pressure_before', 'Тиск До'),
-        ('pressure_after', 'Тиск Після'),
+        ('pressure_intercooler_before', 'Тиск і/к до'),
+        ('pressure_intercooler_after', 'Тиск і/к після'),
+        ('pressure_engine_before', 'Тиск двиг. до'),
+        ('pressure_engine_after', 'Тиск двиг. після'),
+        ('battery_voltage_haas', 'АКБ HAAS'),
         ('total_mwh', 'Виробітка (МВт)'),
         ('total_hours', 'Мотогодини'),
-        ('oil_sampling_limit', 'Ліміт мастила')
+        ('oil_sampling_limit', 'Ліміт мастила'),
+        ('bearing_lubrication_limit', 'Мастило підшип.')
     ]
     
     keyboard = []

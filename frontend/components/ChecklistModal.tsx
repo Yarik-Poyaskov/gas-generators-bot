@@ -238,61 +238,152 @@ export default function ChecklistModal({ objectId, objectName, isOpen, onClose }
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">1. Напруга АКБ</span>
-                        <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
-                          {data.report.battery_voltage || '—'}
-                        </span>
-                      </div>
+                      {/* Если это старый отчет (нет новых полей) */}
+                      {!(data.report.pressure_intercooler_before != null || data.report.battery_voltage_haas != null) ? (
+                        <>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">1. Напруга АКБ</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.battery_voltage || '—'}
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">2. Тиск антифризу (До)</span>
-                        <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
-                          {data.report.pressure_before != null ? `${data.report.pressure_before} бар` : '—'}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">2. Тиск антифризу (До)</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.pressure_before != null ? `${data.report.pressure_before} бар` : '—'}
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">3. Тиск антифризу (Після)</span>
-                        <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
-                          {data.report.pressure_after != null ? `${data.report.pressure_after} бар` : '—'}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">3. Тиск антифризу (Після)</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.pressure_after != null ? `${data.report.pressure_after} бар` : '—'}
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">4. Всього вироблено</span>
-                        <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
-                          {data.report.total_mwh != null ? `${data.report.total_mwh} МВт*год` : '—'}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">4. Всього вироблено</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.total_mwh != null ? `${data.report.total_mwh} МВт*год` : '—'}
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">5. Всього відпрацьовано</span>
-                        <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
-                          {data.report.total_hours != null ? `${data.report.total_hours} м/год` : '—'}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">5. Всього відпрацьовано</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.total_hours != null ? `${data.report.total_hours} м/год` : '—'}
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">6. До відбору оливи</span>
-                        <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
-                          {data.report.oil_sampling_limit != null ? `${data.report.oil_sampling_limit} м/год` : '—'}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">6. До відбору оливи</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.oil_sampling_limit != null ? `${data.report.oil_sampling_limit} м/год` : '—'}
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">7. Звірка апаратів</span>
-                        <span className="font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-1 rounded border border-emerald-100 dark:border-emerald-900/30">
-                          Підтверджено
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">7. Звірка апаратів</span>
+                            <span className="font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-1 rounded border border-emerald-100 dark:border-emerald-900/30">
+                              Підтверджено
+                            </span>
+                          </div>
 
-                      <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-400">8. Статус роботи</span>
-                        <span className="font-black text-[#004899] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 px-2 py-1 rounded border border-blue-100 dark:border-blue-900/30 leading-none">
-                          {data.report.gpu_status || '—'}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">8. Статус роботи</span>
+                            <span className="font-black text-[#004899] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 px-2 py-1 rounded border border-blue-100 dark:border-blue-900/30 leading-none">
+                              {data.report.gpu_status || '—'}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">1. Напруга АКБ</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.battery_voltage || '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">2. Тиск і/к (До)</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.pressure_intercooler_before != null ? `${data.report.pressure_intercooler_before} бар` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">3. Тиск і/к (Після)</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.pressure_intercooler_after != null ? `${data.report.pressure_intercooler_after} бар` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">4. Тиск двигуна (До)</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.pressure_engine_before != null ? `${data.report.pressure_engine_before} бар` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">5. Тиск двигуна (Після)</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.pressure_engine_after != null ? `${data.report.pressure_engine_after} бар` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">6. Напруга АКБ HAAS</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.battery_voltage_haas != null ? `${data.report.battery_voltage_haas} В` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">7. Всього вироблено</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.total_mwh != null ? `${data.report.total_mwh} МВт*год` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">8. Всього відпрацьовано</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.total_hours != null ? `${data.report.total_hours} м/год` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">9. До відбору оливи</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.oil_sampling_limit != null ? `${data.report.oil_sampling_limit} м/год` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">10. Мастило підшип.</span>
+                            <span className="font-black text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200/50 dark:border-slate-700/50">
+                              {data.report.bearing_lubrication_limit != null ? `${data.report.bearing_lubrication_limit} м/год` : '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">11. Звірка апаратів</span>
+                            <span className="font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-1 rounded border border-emerald-100 dark:border-emerald-900/30">
+                              Підтверджено
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <span className="font-bold text-slate-400">12. Статус роботи</span>
+                            <span className="font-black text-[#004899] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 px-2 py-1 rounded border border-blue-100 dark:border-blue-900/30 leading-none">
+                              {data.report.gpu_status || '—'}
+                            </span>
+                          </div>
+                        </>
+                      )}
 
                     </div>
                   </div>

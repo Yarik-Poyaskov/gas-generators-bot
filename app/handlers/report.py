@@ -493,11 +493,11 @@ async def set_battery_voltage(message: Message, state: FSMContext):
         final_val = "/".join(formatted_parts)
 
     await state.update_data(battery_voltage=final_val)
-    await state.set_state(ReportState.pressure_before)
-    await message.answer("6. Тиск антифризу до пуску ГПУ (GK, до насоса) в бар", reply_markup=get_simple_cancel_kb())
+    await state.set_state(ReportState.pressure_intercooler_before)
+    await message.answer("2. Тиск антифризу в контурі інтеркулера (малий) до пуску ГПУ (GK/MCC, до насоса) в бар:", reply_markup=get_simple_cancel_kb())
 
-@router.message(ReportState.pressure_before)
-async def set_pressure_before(message: Message, state: FSMContext):
+@router.message(ReportState.pressure_intercooler_before)
+async def set_pressure_intercooler_before(message: Message, state: FSMContext):
     if message.text == "Відміна":
         return await cmd_cancel_report(message, state)
     if not message.text:
@@ -505,32 +505,33 @@ async def set_pressure_before(message: Message, state: FSMContext):
         return
     try:
         val = float(message.text.replace(",", "."))
-        await state.update_data(pressure_before=val)
-        await state.set_state(ReportState.pressure_after)
+        await state.update_data(pressure_intercooler_before=val)
+        await state.set_state(ReportState.pressure_intercooler_after)
         await message.answer(
-            "7. Тиск антифризу після пуску ГПУ (GK, до насоса) в бар", 
+            "3. Тиск антифризу в контурі інтеркулера (малий) після пуску ГПУ (GK/MCC, до насоса) в бар:", 
             reply_markup=get_skip_after_pressure_kb()
         )
     except ValueError:
         await message.answer("Введіть число.")
 
-@router.callback_query(ReportState.pressure_after, F.data == "skip_pressure_after")
-async def handle_skip_pressure_after(callback: CallbackQuery, state: FSMContext):
-    await state.update_data(pressure_after="-")
-    await state.set_state(ReportState.total_mwh)
+@router.callback_query(ReportState.pressure_intercooler_after, F.data == "skip_pressure_after")
+async def handle_skip_pressure_intercooler_after(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(pressure_intercooler_after="-")
+    await state.set_state(ReportState.pressure_engine_before)
     if callback.message:
         try:
             await callback.message.delete()
         except Exception:
             pass
+        await callback.message.answer("3. Тиск антифризу в контурі інтеркулера (малий) після пуску ГПУ (GK/MCC, до насоса) в бар: -")
         await callback.message.answer(
-            "7. Тиск антифризу після пуску ГПУ (GK, до насоса) в бар: -\n\n8. Всього вироблено (МВт*год):", 
+            "Тиск антифризу в контурі двигуна (великий) до пуску ГПУ (NK/ECC, до насоса) в бар:", 
             reply_markup=get_simple_cancel_kb()
         )
     await callback.answer()
 
-@router.message(ReportState.pressure_after)
-async def set_pressure_after(message: Message, state: FSMContext):
+@router.message(ReportState.pressure_intercooler_after)
+async def set_pressure_intercooler_after(message: Message, state: FSMContext):
     if message.text == "Відміна":
         return await cmd_cancel_report(message, state)
     if not message.text:
@@ -538,15 +539,83 @@ async def set_pressure_after(message: Message, state: FSMContext):
         return
     val = message.text.strip()
     if val == "-":
-        await state.update_data(pressure_after="-")
+        await state.update_data(pressure_intercooler_after="-")
     else:
         try:
-            await state.update_data(pressure_after=float(val.replace(",", ".")))
+            await state.update_data(pressure_intercooler_after=float(val.replace(",", ".")))
         except ValueError:
             await message.answer("Введіть число або '-'")
             return
+    await state.set_state(ReportState.pressure_engine_before)
+    await message.answer(
+        "Тиск антифризу в контурі двигуна (великий) до пуску ГПУ (NK/ECC, до насоса) в бар:", 
+        reply_markup=get_simple_cancel_kb()
+    )
+
+@router.message(ReportState.pressure_engine_before)
+async def set_pressure_engine_before(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+    if not message.text:
+        await message.answer("Будь ласка, введіть число.")
+        return
+    try:
+        val = float(message.text.replace(",", "."))
+        await state.update_data(pressure_engine_before=val)
+        await state.set_state(ReportState.pressure_engine_after)
+        await message.answer(
+            "Тиск антифризу в контурі двигуна (великий) після пуску ГПУ (NK/ECC, до насоса) в бар:", 
+            reply_markup=get_skip_after_pressure_kb()
+        )
+    except ValueError:
+        await message.answer("Введіть число.")
+
+@router.callback_query(ReportState.pressure_engine_after, F.data == "skip_pressure_after")
+async def handle_skip_pressure_engine_after(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(pressure_engine_after="-")
+    await state.set_state(ReportState.battery_voltage_haas)
+    if callback.message:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer("Тиск антифризу в контурі двигуна (великий) після пуску ГПУ (NK/ECC, до насоса) в бар: -")
+        await callback.message.answer(
+            "Напруга АКБ шафи керування (HAAS) в В:", 
+            reply_markup=get_simple_cancel_kb()
+        )
+    await callback.answer()
+
+@router.message(ReportState.pressure_engine_after)
+async def set_pressure_engine_after(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+    if not message.text:
+        await message.answer("Будь ласка, введіть число або '-'")
+        return
+    val = message.text.strip()
+    if val == "-":
+        await state.update_data(pressure_engine_after="-")
+    else:
+        try:
+            await state.update_data(pressure_engine_after=float(val.replace(",", ".")))
+        except ValueError:
+            await message.answer("Введіть число или '-'")
+            return
+    await state.set_state(ReportState.battery_voltage_haas)
+    await message.answer("Напруга АКБ шафи керування (HAAS) в В:", reply_markup=get_simple_cancel_kb())
+
+@router.message(ReportState.battery_voltage_haas)
+async def set_battery_voltage_haas(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+    if not message.text:
+        await message.answer("Будь ласка, введіть значення напруги АКБ HAAS.")
+        return
+    
+    await state.update_data(battery_voltage_haas=message.text.strip())
     await state.set_state(ReportState.total_mwh)
-    await message.answer("8. Всього вироблено (МВт*год):", reply_markup=get_simple_cancel_kb())
+    await message.answer("Всього вироблено (МВт*год):", reply_markup=get_simple_cancel_kb())
 
 @router.message(ReportState.total_mwh)
 async def set_total_mwh(message: Message, state: FSMContext):
@@ -588,6 +657,21 @@ async def set_oil_sampling_limit(message: Message, state: FSMContext):
     try:
         val = float(message.text.replace(",", "."))
         await state.update_data(oil_sampling_limit=val)
+        await state.set_state(ReportState.bearing_lubrication_limit)
+        await message.answer("До змащування підшипника генератора (м/год):", reply_markup=get_simple_cancel_kb())
+    except ValueError:
+        await message.answer("Введіть число.")
+
+@router.message(ReportState.bearing_lubrication_limit)
+async def set_bearing_lubrication_limit(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+    if not message.text:
+        await message.answer("Будь ласка, введіть число.")
+        return
+    try:
+        val = float(message.text.replace(",", "."))
+        await state.update_data(bearing_lubrication_limit=val)
         await state.set_state(ReportState.apparatus_check)
         await message.answer("11. Звірка положення всіх комутаційних апаратів (ВК ГПУ, Т-1, Т-2, ВВ ГПУ, Ввод-1, Ввод-2, КЛ-1, КЛ-2, СВ-0,4 кВ). Все на своїх місцях?", reply_markup=get_apparatus_check_kb())
     except ValueError:
@@ -626,6 +710,8 @@ async def set_photo_shos_invalid(message: Message, state: FSMContext):
 @router.message(ReportState.time_type)
 @router.message(ReportState.start_time)
 @router.message(ReportState.power_type)
+@router.message(ReportState.pressure_intercooler_after)
+@router.message(ReportState.pressure_engine_after)
 @router.message(ReportState.apparatus_check)
 @router.message(ReportState.waiting_for_confirmation)
 @router.message(ReportState.is_gpu_working)
@@ -713,14 +799,21 @@ async def show_final_confirmation(message: Message, state: FSMContext):
     ]
     
     if not is_short:
+        haas_val = data.get('battery_voltage_haas')
+        haas_display = f"{haas_val} В" if haas_val and "в" not in str(haas_val).lower() else f"{haas_val}"
+        
         fields += [
             ("5. Напруга АКБ", data.get('battery_voltage')),
-            ("6. Тиск до пуску ГПУ (GK, до насоса)", f"{data.get('pressure_before')} бар"),
-            ("7. Тиск після пуску ГПУ (GK, до насоса)", f"{data.get('pressure_after')} бар"),
-            ("8. Вироблено", f"{data.get('total_mwh')} МВт*год"),
-            ("9. Відпрацьовано", f"{data.get('total_hours')} м/год"),
-            ("10. До відбору оливи", f"{data.get('oil_sampling_limit')} м/год"),
-            ("11. Звірка апаратів", "Підтверджено")
+            ("6. Тиск інтеркулера до пуску ГПУ (GK/MCC, до насоса)", f"{data.get('pressure_intercooler_before')} бар"),
+            ("7. Тиск інтеркулера після пуску ГПУ (GK/MCC, до насоса)", f"{data.get('pressure_intercooler_after')} бар" if data.get('pressure_intercooler_after') == "-" else f"{data.get('pressure_intercooler_after')} бар"),
+            ("8. Тиск двигуна до пуску ГПУ (NK/ECC, до насоса)", f"{data.get('pressure_engine_before')} бар"),
+            ("9. Тиск двигуна після пуску ГПУ (NK/ECC, до насоса)", f"{data.get('pressure_engine_after')} бар" if data.get('pressure_engine_after') == "-" else f"{data.get('pressure_engine_after')} bar" if False else f"{data.get('pressure_engine_after')} бар"),
+            ("10. Напруга АКБ шафи керування (HAAS)", haas_display),
+            ("11. Вироблено", f"{data.get('total_mwh')} МВт*год"),
+            ("12. Відпрацьовано", f"{data.get('total_hours')} м/год"),
+            ("13. До відбору оливи", f"{data.get('oil_sampling_limit')} м/год"),
+            ("14. До змащування підшипника генератора", f"{data.get('bearing_lubrication_limit')} м/год"),
+            ("15. Звірка апаратів", "Підтверджено")
         ]
 
     for label, val in fields:
@@ -828,16 +921,23 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
             else:
                 status_display = work_mode
 
-        # For full report, we show points 1-7 (original 5-11, as 1-4 are excluded per request)
+        haas_val = data.get('battery_voltage_haas')
+        haas_display = f"{haas_val} В" if haas_val and "в" not in str(haas_val).lower() else f"{haas_val}"
+
+        # For full report, we show points 1-12
         group_summary += (
             f"\n<b>1. Напруга АКБ:</b> {data.get('battery_voltage')}\n"
-            f"<b>2. Тиск антифризу до пуску ГПУ (GK, до насоса):</b> {data.get('pressure_before')} бар\n"
-            f"<b>3. Тиск антифризу після пуску ГПУ (GK, до насоса):</b> {data.get('pressure_after')} бар\n"
-            f"<b>4. Всього вироблено:</b> {data.get('total_mwh')} МВт*год\n"
-            f"<b>5. Всього відпрацьовано:</b> {data.get('total_hours')} м/год\n"
-            f"<b>6. До відбору оливи:</b> {data.get('oil_sampling_limit')} м/год\n"
-            f"<b>7. Звірка апаратів:</b> Підтверджено\n"
-            f"<b>8. Статус роботи:</b> {status_display}"
+            f"<b>2. Тиск антифризу в контурі інтеркулера (малий) до пуску ГПУ (GK/MCC, до насоса):</b> {data.get('pressure_intercooler_before')} бар\n"
+            f"<b>3. Тиск антифризу в контурі інтеркулера (малий) після пуску ГПУ (GK/MCC, до насоса):</b> {data.get('pressure_intercooler_after')} бар\n"
+            f"<b>4. Тиск антифризу в контурі двигуна (великий) до пуску ГПУ (NK/ECC, до насоса):</b> {data.get('pressure_engine_before')} бар\n"
+            f"<b>5. Тиск антифризу в контурі двигуна (великий) після пуску ГПУ (NK/ECC, до насоса):</b> {data.get('pressure_engine_after')} бар\n"
+            f"<b>6. Напруга АКБ шафи керування (HAAS):</b> {haas_display}\n"
+            f"<b>7. Всього вироблено:</b> {data.get('total_mwh')} МВт*год\n"
+            f"<b>8. Всього відпрацьовано:</b> {data.get('total_hours')} м/год\n"
+            f"<b>9. До відбору оливи:</b> {data.get('oil_sampling_limit')} м/год\n"
+            f"<b>10. До змащування підшипника генератора:</b> {data.get('bearing_lubrication_limit')} м/год\n"
+            f"<b>11. Звірка апаратів:</b> Підтверджено\n"
+            f"<b>12. Статус роботи:</b> {status_display}"
         )
 
     async def deliver(chat_id, custom_text=None):

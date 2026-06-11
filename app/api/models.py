@@ -53,9 +53,15 @@ class ReportInfo(BaseModel):
     battery_voltage: Optional[str] = None
     pressure_before: Optional[float] = None
     pressure_after: Optional[str] = None
+    pressure_intercooler_before: Optional[float] = None
+    pressure_intercooler_after: Optional[str] = None
+    pressure_engine_before: Optional[float] = None
+    pressure_engine_after: Optional[str] = None
+    battery_voltage_haas: Optional[str] = None
     total_mwh: Optional[float] = None
     total_hours: Optional[float] = None
     oil_sampling_limit: Optional[float] = None
+    bearing_lubrication_limit: Optional[float] = None
     created_at: datetime
 
 class ScheduleInterval(BaseModel):

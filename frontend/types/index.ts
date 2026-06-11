@@ -41,9 +41,15 @@ export interface ReportInfo {
   battery_voltage?: string;
   pressure_before?: number;
   pressure_after?: string;
+  pressure_intercooler_before?: number;
+  pressure_intercooler_after?: string;
+  pressure_engine_before?: number;
+  pressure_engine_after?: string;
+  battery_voltage_haas?: string;
   total_mwh?: number;
   total_hours?: number;
   oil_sampling_limit?: number;
+  bearing_lubrication_limit?: number;
   created_at: string;
 }
 

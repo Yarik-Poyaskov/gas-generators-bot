@@ -140,11 +140,15 @@ async def show_report_view(callback: CallbackQuery, state: FSMContext, report_id
         ('start_time', '2. Час запуску'),
         ('gpu_status', '4. Статус ГПУ'),
         ('battery_voltage', '5. АКБ'),
-        ('pressure_before', '6. Тиск До'),
-        ('pressure_after', '7. Тиск Після'),
-        ('total_mwh', '8. Виробітка (МВт)'),
-        ('total_hours', '9. Мотогодини'),
-        ('oil_sampling_limit', '10. Ліміт мастила')
+        ('pressure_intercooler_before', '6. Тиск і/к до'),
+        ('pressure_intercooler_after', '7. Тиск і/к після'),
+        ('pressure_engine_before', '8. Тиск двиг. до'),
+        ('pressure_engine_after', '9. Тиск двиг. після'),
+        ('battery_voltage_haas', '10. АКБ HAAS'),
+        ('total_mwh', '11. Виробітка (МВт)'),
+        ('total_hours', '12. Мотогодини'),
+        ('oil_sampling_limit', '13. Ліміт мастила'),
+        ('bearing_lubrication_limit', '14. Мастило подшип.')
     ]
     
     for f_id, f_name in fields:
@@ -198,11 +202,15 @@ async def process_field_selection(callback: CallbackQuery, state: FSMContext):
         'start_time': 'Час запуску',
         'gpu_status': 'Статус ГПУ',
         'battery_voltage': 'Напруга АКБ',
-        'pressure_before': 'Тиск До',
-        'pressure_after': 'Тиск Після',
+        'pressure_intercooler_before': 'Тиск і/к до',
+        'pressure_intercooler_after': 'Тиск і/к після',
+        'pressure_engine_before': 'Тиск двиг. до',
+        'pressure_engine_after': 'Тиск двиг. після',
+        'battery_voltage_haas': 'АКБ HAAS',
         'total_mwh': 'Виробітка (МВт)',
         'total_hours': 'Мотогодини',
-        'oil_sampling_limit': 'Ліміт мастила'
+        'oil_sampling_limit': 'Ліміт мастила',
+        'bearing_lubrication_limit': 'Мастило подшип.'
     }
     
     prompt = f"✏️ **Зміна параметра: {field_names.get(field)}**\n"
@@ -255,13 +263,21 @@ async def process_text_value(message: Message, state: FSMContext):
     val = message.text.strip().replace(",", ".")
     
     # Simple validation for numeric fields
-    numeric_fields = ['pressure_before', 'pressure_after', 'total_mwh', 'total_hours', 'oil_sampling_limit']
+    numeric_fields = [
+        'pressure_intercooler_before', 'pressure_intercooler_after', 
+        'pressure_engine_before', 'pressure_engine_after', 
+        'total_mwh', 'total_hours', 'oil_sampling_limit', 
+        'bearing_lubrication_limit'
+    ]
     if field in numeric_fields:
-        try:
-            val = float(val)
-        except ValueError:
-            await message.answer("Помилка! Будь ласка, введіть число.")
-            return
+        if field in ['pressure_intercooler_after', 'pressure_engine_after'] and val == "-":
+            pass
+        else:
+            try:
+                val = float(val)
+            except ValueError:
+                await message.answer("Помилка! Будь ласка, введіть число або '-'.")
+                return
 
     await save_and_notify(message, state, field, val)
 

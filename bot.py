@@ -33,6 +33,10 @@ async def main():
     )
     dp = Dispatcher()
 
+    # Initialize Bot Commands Menu for all users in background
+    from app.services.bot_commands import initialize_all_user_commands
+    asyncio.create_task(initialize_all_user_commands(bot))
+
     # Register Middlewares
     dp.update.outer_middleware(ActionLoggingMiddleware())
 

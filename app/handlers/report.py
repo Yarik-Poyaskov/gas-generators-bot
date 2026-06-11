@@ -70,6 +70,7 @@ async def handle_cancel_checklist_inline(callback: CallbackQuery, state: FSMCont
 
 # --- Start Handlers ---
 
+@router.message(Command("status"), F.chat.type == "private")
 @router.message(F.text == "Статус ГПУ", F.chat.type == "private")
 async def start_short_report(message: Message, state: FSMContext):
     await init_report(message, state, is_short=True)

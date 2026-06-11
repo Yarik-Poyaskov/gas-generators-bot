@@ -101,6 +101,10 @@ async def cmd_start(message: Message, state: FSMContext):
     role = user_data['role'] if user_data else 'user'
     full_name = user_data['full_name'] if user_data else message.from_user.full_name
     
+    # Update Bot Commands Menu for user
+    from app.services.bot_commands import set_user_menu_commands
+    await set_user_menu_commands(message.bot, user_id, is_admin, role)
+
     if role == 'trader':
         msg = f"Вітаю, {full_name}! Тут ви можете подати графік роботи ГПУ."
     else:
@@ -148,6 +152,11 @@ async def handle_contact(message: Message, state: FSMContext):
                 role = 'user'
             
             await state.clear()
+            
+            # Update Bot Commands Menu for user on successful registration
+            from app.services.bot_commands import set_user_menu_commands
+            await set_user_menu_commands(message.bot, user_id, is_admin, role)
+
             if role == 'trader':
                 msg = f"Дякую, {full_name}! Ваші дані підтверджено. Тут ви можете подати графік роботи ГПУ."
             else:

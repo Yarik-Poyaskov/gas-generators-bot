@@ -2,6 +2,7 @@ import re
 import logging
 from datetime import datetime, timedelta
 from aiogram import Router, F, Bot, html
+from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 
@@ -37,6 +38,8 @@ def get_report_period_uk():
     year = last_day_prev_month.year
     return month_name, year
 
+@router.message(Command("monthly_diff"), F.chat.type == "private")
+@router.message(Command("monthly_corr"), F.chat.type == "private")
 @router.message(F.text.in_([
     "📊Звіт показників роботи ГПУ за місяць(різниця показників газу)",
     "📊Звіт показників роботи ГПУ за місяць(показники газового коректора)"
@@ -54,7 +57,10 @@ async def cmd_monthly_report_start(message: Message, state: FSMContext):
     await state.clear()
     
     # Save report type
-    report_type = "difference" if "різниця" in message.text else "corrector"
+    report_type = "difference"
+    if message.text:
+        if "коректор" in message.text or "monthly_corr" in message.text:
+            report_type = "corrector"
     await state.update_data(report_type=report_type)
     
     # Get user objects

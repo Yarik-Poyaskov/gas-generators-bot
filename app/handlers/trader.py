@@ -1,6 +1,7 @@
 import json
 import re
 from aiogram import Router, F, Bot
+from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, timedelta
@@ -20,6 +21,7 @@ from app.states.trader import TraderScheduleState
 
 router = Router()
 
+@router.message(Command("trader_schedule"), F.chat.type == "private")
 @router.message(F.text == "Графік роботи ГПУ", F.chat.type == "private")
 async def cmd_trader_schedule_start(message: Message, state: FSMContext):
     user_id = message.from_user.id

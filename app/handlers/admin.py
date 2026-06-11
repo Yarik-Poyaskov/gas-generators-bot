@@ -1,5 +1,6 @@
 import re
 from aiogram import Router, F, Bot
+from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
@@ -35,6 +36,7 @@ def normalize_phone(phone: str) -> str:
         return '38' + digits
     return digits
 
+@router.message(Command("admin"), F.chat.type == "private")
 @router.message(F.text == "Адмін панель", F.chat.type == "private")
 async def cmd_admin_panel(message: Message, state: FSMContext):
     await state.clear()
@@ -419,10 +421,21 @@ async def delete_user_cmd(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("confirm_del_user:"))
 async def process_delete_user_finish(callback: CallbackQuery, state: FSMContext):
     user_id_db = int(callback.data.split(":")[1])
+    user = await get_user_by_db_id(user_id_db)
+    target_user_id = user['user_id'] if user else None
+
     await delete_user_by_id(user_id_db)
     await state.update_data(managing_user_id=None)
     await callback.message.edit_text("✅ Користувача видалено.")
     await callback.message.answer("Ви в адмін-панелі.", reply_markup=get_admin_main_keyboard())
+    
+    if target_user_id:
+        try:
+            from aiogram.types import BotCommandScopeChat
+            await callback.bot.delete_my_commands(scope=BotCommandScopeChat(chat_id=target_user_id))
+        except Exception:
+            pass
+
     await callback.answer()
 
 # --- Trader Management (Details & Actions) ---
@@ -514,10 +527,21 @@ async def delete_trader_cmd(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("confirm_del_trader:"))
 async def process_delete_trader_finish(callback: CallbackQuery, state: FSMContext):
     trader_id_db = int(callback.data.split(":")[1])
+    trader = await get_user_by_db_id(trader_id_db)
+    target_trader_id = trader['user_id'] if trader else None
+
     await delete_user_by_id(trader_id_db)
     await state.update_data(managing_trader_id=None)
     await callback.message.edit_text("✅ Трейдера видалено.")
     await callback.message.answer("Ви в адмін-панелі.", reply_markup=get_admin_main_keyboard())
+    
+    if target_trader_id:
+        try:
+            from aiogram.types import BotCommandScopeChat
+            await callback.bot.delete_my_commands(scope=BotCommandScopeChat(chat_id=target_trader_id))
+        except Exception:
+            pass
+
     await callback.answer()
 
 @router.message(F.text == "Мої об'єкти")

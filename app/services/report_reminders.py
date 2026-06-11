@@ -246,6 +246,14 @@ async def process_event_reminder(bot, schedule_id, group_id, obj_name, event_tim
                 logger.info(f"Sent {event_type} reminder for {obj_name} (scheduled {event_time_str})")
             except Exception as e:
                 logger.error(f"Failed to send reminder to {group_id}: {e}")
+
+            # Notify Special Group if configured (without reply_markup)
+            if config.special_group_id:
+                try:
+                    await bot.send_message(chat_id=config.special_group_id, text=msg, parse_mode="HTML")
+                    logger.info(f"Sent duplicated {event_type} reminder for {obj_name} to special group {config.special_group_id}")
+                except Exception as e:
+                    logger.error(f"Failed to send duplicated reminder to special group {config.special_group_id}: {e}")
                 
     except Exception as e:
         logger.error(f"Error processing {event_type} reminder for {obj_name}: {e}")

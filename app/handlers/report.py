@@ -967,6 +967,11 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     if is_obh and config.obh_special_group_id:
         await deliver(config.obh_special_group_id)
 
+    # 5. Дополнительно шлем копии сообщений с пометкой "Авария" в группу ALERT_GROUP
+    has_anomaly = "аварі" in group_summary.lower() or "авари" in group_summary.lower()
+    if has_anomaly and config.alert_group:
+        await deliver(config.alert_group)
+
     await callback.message.edit_text("✅ Звіт успішно збережено!")
     await callback.message.answer("Ви в головному меню.", reply_markup=get_main_menu_keyboard(is_admin=is_admin, role=role))
     await callback.answer()

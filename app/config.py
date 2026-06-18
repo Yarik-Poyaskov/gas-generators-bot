@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     special_group_id: int = Field(None, description="Special Group ID for simplified reports")
     obh_special_group_id: int | None = Field(None, description="Special Group ID for OBH GPU reports")
     test_special_group_id: int = Field(None, description="Test Special Group ID for image reports")
+    alert_group: int | None = Field(None, description="Group ID for sending copies of reports with anomalies")
     summary_report_time: str = Field("09:40", description="HH:MM for summary report")
     db_url: str = "sqlite+aiosqlite:///reports.db"
     tc_name: str = "Facility Name"

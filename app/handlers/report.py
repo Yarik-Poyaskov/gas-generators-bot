@@ -972,7 +972,50 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     if has_anomaly and config.alert_group:
         await deliver(config.alert_group)
 
+    # 6. Check for low battery voltage (< 27V)
+    if not is_short and linked_group_id:
+        try:
+            battery_voltage_str = data.get('battery_voltage')
+            if battery_voltage_str:
+                voltages = [float(val.replace(',', '.')) for val in re.findall(r"(\d+(?:[.,]\d+)?)", battery_voltage_str)]
+                if any(v < 27.0 for v in voltages):
+                    async def send_low_battery_alert(bot_instance: Bot, group_id: int):
+                        await asyncio.sleep(7)  # Delay between 5-10 seconds
+                        try:
+                            await bot_instance.send_message(
+                                chat_id=group_id,
+                                text="⚠️ <b>Увага! Заряд АКБ нижче допустимого. Визначте причину і напишіть пояснення</b>",
+                                parse_mode="HTML"
+                            )
+                        except Exception as e:
+                            logging.error(f"Failed to send low battery alert to {group_id}: {e}")
+                    asyncio.create_task(send_low_battery_alert(bot, linked_group_id))
+        except Exception as e:
+            logging.error(f"Error checking battery voltage alert: {e}")
+
+    # 7. Check for oil sampling limit (< 24 hours)
+    if not is_short and linked_group_id:
+        try:
+            oil_limit = data.get('oil_sampling_limit')
+            if oil_limit is not None:
+                oil_limit_val = float(str(oil_limit).replace(',', '.'))
+                if oil_limit_val < 24.0:
+                    async def send_oil_warning(bot_instance: Bot, group_id: int):
+                        await asyncio.sleep(5)  # Delay between 5-10 seconds
+                        try:
+                            await bot_instance.send_message(
+                                chat_id=group_id,
+                                text="⚠️ <b>Увага, оператори! До моменту відбору оливи на аналіз завчасно забезпечте тару та бланк анкети</b>",
+                                parse_mode="HTML"
+                            )
+                        except Exception as e:
+                            logging.error(f"Failed to send oil sampling warning to {group_id}: {e}")
+                    asyncio.create_task(send_oil_warning(bot, linked_group_id))
+        except Exception as e:
+            logging.error(f"Error checking oil sampling limit alert: {e}")
+
     await callback.message.edit_text("✅ Звіт успішно збережено!")
     await callback.message.answer("Ви в головному меню.", reply_markup=get_main_menu_keyboard(is_admin=is_admin, role=role))
     await callback.answer()
+
 

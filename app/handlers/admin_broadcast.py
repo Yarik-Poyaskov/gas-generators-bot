@@ -431,8 +431,7 @@ async def skip_survey_photos(callback: CallbackQuery, state: FSMContext):
         return
 
     await state.update_data(survey_photos=[])
-    await show_survey_summary(callback.message, state)
-    await callback.answer()
+    await start_survey_object_selection(callback, state)
 
 from aiogram.types import Message, CallbackQuery, InputMediaPhoto, ContentType, ReplyKeyboardRemove
 

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     db_url: str = "sqlite+aiosqlite:///reports.db"
     tc_name: str = "Facility Name"
     users_per_page: int = 10
+    min_battery_voltage: float = 27.0
+    oil_sampling_min_hours: float = 24.0
+
 
     # Web API settings
     api_port: int = 7895

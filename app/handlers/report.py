@@ -969,7 +969,7 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
 
     # 5. Дополнительно шлем копии сообщений с пометкой "Авария" в группу ALERT_GROUP
     has_anomaly = "аварі" in group_summary.lower() or "авари" in group_summary.lower()
-    if has_anomaly and config.alert_group:
+    if is_short and has_anomaly and config.alert_group:
         await deliver(config.alert_group)
 
     # 6. Check for low battery voltage (< config.min_battery_voltage)

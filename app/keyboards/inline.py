@@ -834,11 +834,11 @@ def get_survey_objects_kb(objects: list, selected_ids: list) -> InlineKeyboardMa
     for i in range(0, len(sorted_objects), 2):
         row = []
         for obj in sorted_objects[i:i+2]:
-            is_selected = obj['telegram_group_id'] in selected_ids
+            is_selected = obj['id'] in selected_ids
             icon = "✅" if is_selected else "⬜"
             row.append(InlineKeyboardButton(
                 text=f"{icon} {obj['name']}", 
-                callback_data=f"survey_toggle_obj:{obj['telegram_group_id']}"
+                callback_data=f"survey_toggle_obj:{obj['id']}"
             ))
         keyboard.append(row)
         
@@ -865,11 +865,11 @@ def get_broadcast_objects_kb(objects: list, selected_ids: list) -> InlineKeyboar
     for i in range(0, len(sorted_objects), 2):
         row = []
         for obj in sorted_objects[i:i+2]:
-            is_selected = obj['telegram_group_id'] in selected_ids
+            is_selected = obj['id'] in selected_ids
             icon = "✅" if is_selected else "⬜"
             row.append(InlineKeyboardButton(
                 text=f"{icon} {obj['name']}", 
-                callback_data=f"bc_toggle_obj:{obj['telegram_group_id']}"
+                callback_data=f"bc_toggle_obj:{obj['id']}"
             ))
         keyboard.append(row)
         

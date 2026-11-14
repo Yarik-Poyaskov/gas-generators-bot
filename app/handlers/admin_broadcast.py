@@ -89,8 +89,8 @@ async def process_broadcast_content(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    # Default: select all
-    selected_ids = [obj['telegram_group_id'] for obj in valid_objects]
+    # Default: select all by object ID
+    selected_ids = [obj['id'] for obj in valid_objects]
     await state.update_data(selected_object_ids=selected_ids)
     await state.set_state(BroadcastState.waiting_for_objects)
     
@@ -102,14 +102,14 @@ async def process_broadcast_content(message: Message, state: FSMContext):
 
 @router.callback_query(BroadcastState.waiting_for_objects, F.data.startswith("bc_toggle_obj:"))
 async def toggle_broadcast_object(callback: CallbackQuery, state: FSMContext):
-    group_id = int(callback.data.split(":")[1])
+    obj_id = int(callback.data.split(":")[1])
     data = await state.get_data()
     selected_ids = data.get("selected_object_ids", [])
     
-    if group_id in selected_ids:
-        selected_ids.remove(group_id)
+    if obj_id in selected_ids:
+        selected_ids.remove(obj_id)
     else:
-        selected_ids.append(group_id)
+        selected_ids.append(obj_id)
         
     await state.update_data(selected_object_ids=selected_ids)
     
@@ -125,7 +125,7 @@ async def toggle_broadcast_object(callback: CallbackQuery, state: FSMContext):
 async def broadcast_select_all_objects(callback: CallbackQuery, state: FSMContext):
     objects = await get_all_objects()
     valid_objects = [obj for obj in objects if obj['telegram_group_id']]
-    selected_ids = [obj['telegram_group_id'] for obj in valid_objects]
+    selected_ids = [obj['id'] for obj in valid_objects]
     
     await state.update_data(selected_object_ids=selected_ids)
     await callback.message.edit_reply_markup(
@@ -147,10 +147,19 @@ async def broadcast_deselect_all_objects(callback: CallbackQuery, state: FSMCont
 @router.callback_query(BroadcastState.waiting_for_objects, F.data == "bc_confirm_send")
 async def broadcast_preview_step(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    target_groups = data.get("selected_object_ids", [])
+    target_objects = data.get("selected_object_ids", [])
     
+    if not target_objects:
+        await callback.answer("⚠️ Оберіть хоча б один об'єкт!", show_alert=True)
+        return
+
+    # Resolve unique telegram_group_ids
+    objects = await get_all_objects()
+    obj_map = {obj['id']: obj['telegram_group_id'] for obj in objects}
+    target_groups = list(set(obj_map[obj_id] for obj_id in target_objects if obj_id in obj_map and obj_map[obj_id]))
+
     if not target_groups:
-        await callback.answer("⚠️ Оберіть хоча б одну групу!", show_alert=True)
+        await callback.answer("⚠️ Оберіть об'єкт з прив'язаною групою!", show_alert=True)
         return
 
     text = data.get("bc_text")
@@ -180,9 +189,18 @@ async def send_broadcast_logic(callback: CallbackQuery, state: FSMContext, bot: 
     text = data.get("bc_text")
     photo_id = data.get("bc_photo")
     document_id = data.get("bc_document")
-    target_groups = data.get("selected_object_ids", [])
+    target_objects = data.get("selected_object_ids", [])
     pin_mode = callback.data.split(":")[1] == "pinned"
     
+    if not target_objects:
+        await callback.answer("⚠️ Немає об'єктів для розсилки!", show_alert=True)
+        return
+
+    # Resolve unique telegram_group_ids
+    objects = await get_all_objects()
+    obj_map = {obj['id']: obj['telegram_group_id'] for obj in objects}
+    target_groups = list(set(obj_map[obj_id] for obj_id in target_objects if obj_id in obj_map and obj_map[obj_id]))
+
     if not target_groups:
         await callback.answer("⚠️ Немає груп для розсилки!", show_alert=True)
         return
@@ -446,11 +464,11 @@ async def start_survey_object_selection(callback: CallbackQuery, state: FSMConte
         await callback.answer("⚠️ Немає об'єктів з прив'язаними групами!", show_alert=True)
         return
         
-    # Default: select all
+    # Default: select all by object ID
     data = await state.get_data()
     selected_ids = data.get("selected_object_ids")
     if selected_ids is None:
-        selected_ids = [obj['telegram_group_id'] for obj in valid_objects]
+        selected_ids = [obj['id'] for obj in valid_objects]
         await state.update_data(selected_object_ids=selected_ids)
         
     await state.set_state(SurveyState.waiting_for_objects)
@@ -464,14 +482,14 @@ async def start_survey_object_selection(callback: CallbackQuery, state: FSMConte
 
 @router.callback_query(SurveyState.waiting_for_objects, F.data.startswith("survey_toggle_obj:"))
 async def toggle_survey_object(callback: CallbackQuery, state: FSMContext):
-    group_id = int(callback.data.split(":")[1])
+    obj_id = int(callback.data.split(":")[1])
     data = await state.get_data()
     selected_ids = data.get("selected_object_ids", [])
     
-    if group_id in selected_ids:
-        selected_ids.remove(group_id)
+    if obj_id in selected_ids:
+        selected_ids.remove(obj_id)
     else:
-        selected_ids.append(group_id)
+        selected_ids.append(obj_id)
         
     await state.update_data(selected_object_ids=selected_ids)
     
@@ -487,7 +505,7 @@ async def toggle_survey_object(callback: CallbackQuery, state: FSMContext):
 async def survey_select_all_objects(callback: CallbackQuery, state: FSMContext):
     objects = await get_all_objects()
     valid_objects = [obj for obj in objects if obj['telegram_group_id']]
-    selected_ids = [obj['telegram_group_id'] for obj in valid_objects]
+    selected_ids = [obj['id'] for obj in valid_objects]
     
     await state.update_data(selected_object_ids=selected_ids)
     await callback.message.edit_reply_markup(
@@ -510,10 +528,10 @@ async def survey_deselect_all_objects(callback: CallbackQuery, state: FSMContext
 async def survey_preview_step(callback: CallbackQuery, state: FSMContext):
     """Step 4: Preview before final send."""
     data = await state.get_data()
-    target_groups = data.get("selected_object_ids", [])
+    target_objects = data.get("selected_object_ids", [])
     
-    if not target_groups:
-        await callback.answer("⚠️ Оберіть хоча б одну групу!", show_alert=True)
+    if not target_objects:
+        await callback.answer("⚠️ Оберіть хоча б один об'єкт!", show_alert=True)
         return
         
     await show_survey_summary(callback.message, state)
@@ -523,9 +541,14 @@ async def show_survey_summary(message: Message, state: FSMContext):
     data = await state.get_data()
     text = data.get("survey_text")
     photos = data.get("survey_photos", [])
-    target_groups = data.get("selected_object_ids", [])
+    target_objects = data.get("selected_object_ids", [])
     
     await state.set_state(SurveyState.confirming)
+
+    # Resolve unique telegram_group_ids
+    objects = await get_all_objects()
+    obj_map = {obj['id']: obj['telegram_group_id'] for obj in objects}
+    target_groups = list(set(obj_map[obj_id] for obj_id in target_objects if obj_id in obj_map and obj_map[obj_id]))
     
     summary_text = f"👀 <b>Передперегляд опитування:</b>\n🎯 Буде відправлено у <b>{len(target_groups)}</b> груп."
     
@@ -540,7 +563,7 @@ async def show_survey_summary(message: Message, state: FSMContext):
             media[0].caption = text
             media[0].parse_mode = "HTML"
             await message.answer_media_group(media=media)
-            await message.answer("👆 Опитування вище. Натисніть кнопку для фінальної відправки:", reply_markup=get_survey_preview_kb())
+            await message.answer("👆 Опитування вище. Натисиниіть кнопку для фінальної відправки:", reply_markup=get_survey_preview_kb())
     else:
         await message.answer(text, reply_markup=get_survey_preview_kb(), parse_mode="HTML")
 
@@ -549,10 +572,19 @@ async def send_survey_logic(callback: CallbackQuery, state: FSMContext, bot: Bot
     data = await state.get_data()
     text = data.get("survey_text")
     photos = data.get("survey_photos", [])
-    target_groups = data.get("selected_object_ids", [])
+    target_objects = data.get("selected_object_ids", [])
     
+    if not target_objects:
+        await callback.answer("⚠️ Оберіть хоча б один об'єкт!", show_alert=True)
+        return
+
+    # Resolve unique telegram_group_ids
+    objects = await get_all_objects()
+    obj_map = {obj['id']: obj['telegram_group_id'] for obj in objects}
+    target_groups = list(set(obj_map[obj_id] for obj_id in target_objects if obj_id in obj_map and obj_map[obj_id]))
+
     if not target_groups:
-        await callback.answer("⚠️ Оберіть хоча б одну групу!", show_alert=True)
+        await callback.answer("⚠️ Немає груп для розсилки опитання!", show_alert=True)
         return
         
     # 1. Create survey in DB

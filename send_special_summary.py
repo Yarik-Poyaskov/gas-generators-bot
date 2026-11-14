@@ -118,11 +118,14 @@ def format_html_table(reports):
         total_hours = r.get('total_hours') or "0"
         work_mode = r.get('work_mode') or "—"
 
+        is_accident = "авар" in work_mode.lower()
+        danger_style = ' class="danger-cell"' if is_accident else ''
+
         rows_html += f"""
         <tr>
             <td style="text-align: center; color: #9aa0a6; font-weight: bold; width: 30px;">{idx}</td>
-            <td>{display_name}</td>
-            <td>{work_mode}</td>
+            <td{danger_style}>{display_name}</td>
+            <td{danger_style}>{work_mode}</td>
             <td>{s_time}</td>
             <td>{load_pct}% / {load_kw} кВт</td>
             <td><span class="{status_style}">{gpu_status}</span></td>
@@ -148,6 +151,7 @@ def format_html_table(reports):
             tr:hover {{ background: #f1f3f4; }}
             .status-ok {{ color: #1e8e3e; background: #e6f4ea; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 11px; }}
             .status-err {{ color: #d93025; background: #fce8e6; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 11px; }}
+            .danger-cell {{ color: #d93025; font-weight: bold; }}
             .footer {{ text-align: right; margin-top: 25px; font-size: 11px; color: #9aa0a6; border-top: 1px solid #eee; padding-top: 10px; }}
         </style>
     </head>

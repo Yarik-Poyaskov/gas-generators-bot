@@ -42,14 +42,19 @@ Desktop.ini
 
 # Temporary files
 tmp/
+scratch/
 *.png
 *.jpg
 *.jpeg
 *.docx
+*.tsbuildinfo
+report_*.txt
 
 # Tools & Debug scripts (usually not needed in git)
 run_bot.bat
 run_bot.ps1
+run_cloudflared.*
+run_frontend.*
 check_chb.py
 check_cv.py
 check_db_objects.py

@@ -1,5 +1,6 @@
 import re
 import asyncio
+import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -36,6 +37,10 @@ def get_status_emoji(gpu_status: str, work_mode: str = "") -> str:
     
     if "аварії" in status_lower or "не готова" in status_lower or "аварії" in mode_lower or "не готова" in mode_lower or "аваріями" in status_lower:
         return "⚠️"
+    if "пропала" in status_lower or "пропала" in mode_lower:
+        return "⚡️"
+    if "з'явилась" in status_lower or "з'явилась" in mode_lower or "зявилась" in status_lower or "зявилась" in mode_lower:
+        return "💡"
     if "стабільна" in status_lower:
         return "🟢"
     if "не працює" in status_lower or "не працює" in mode_lower:
@@ -189,6 +194,109 @@ async def handle_is_gpu_working_invalid(message: Message, state: FSMContext):
     )
 
 # --- Report Flow ---
+
+@router.message(ReportState.work_mode, F.text.in_([
+    "⚡️ Пропала мережа", "💡 З'явилась мережа", 
+    "Пропала мережа", "З'явилась мережа", 
+    "З’явилась мережа", "Зявилась мережа"
+]))
+async def handle_grid_status_quick(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    await state.clear()
+    
+    user_id = message.from_user.id
+    user_data = await get_user(user_id)
+    full_name = data.get("full_name") or (user_data['full_name'] if user_data else message.from_user.full_name)
+    tc_name = data.get("tc_name", "")
+    obj_id = data.get("obj_id")
+    is_admin = user_id in config.admin_ids
+    role = user_data['role'] if user_data else 'user'
+    
+    # 1. Время и дата (Europe/Kiev)
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+    KYIV_TZ = ZoneInfo("Europe/Kiev")
+    now_kyiv = datetime.now(KYIV_TZ)
+    current_date = now_kyiv.strftime("%d.%m.%Y")
+    current_time = now_kyiv.strftime("%H:%M")
+    
+    # 2. Форматирование имени объекта
+    match = re.search(r'\((.*?)\)', tc_name)
+    display_name = match.group(1) if match else tc_name
+    
+    # 3. Определение статуса
+    text_clean = message.text.lower()
+    if "пропала" in text_clean:
+        status_text = "Пропала мережа"
+        emoji = "⚡️"
+        circle = "🔴"
+        title_text = "ПРОПАЛА МЕРЕЖА!"
+    else:
+        status_text = "З'явилась мережа"
+        emoji = "💡"
+        circle = "🟢"
+        title_text = "З'ЯВИЛАСЬ МЕРЕЖА!"
+        
+    msg_to_groups = (
+        f"{emoji} <b>УВАГА: {title_text}</b>\n\n"
+        f"🏢 <b>Об'єкт:</b> {display_name}\n"
+        f"🕒 <b>Час:</b> {current_time} ({current_date})\n"
+        f"👤 <b>Співробітник:</b> {full_name}\n\n"
+        f"<b>Статус:</b> {circle} <b>{status_text}</b>"
+    )
+    
+    # 4. Отправка в рабочую группу объекта
+    obj_details = await get_object_by_id(obj_id) if obj_id else None
+    linked_group_id = obj_details.get('telegram_group_id') if obj_details else None
+    target_work_group = linked_group_id or config.group_id
+    
+    if target_work_group:
+        try:
+            await bot.send_message(chat_id=target_work_group, text=msg_to_groups, parse_mode="HTML")
+            logging.info(f"Sent grid status '{status_text}' for {display_name} to work group {target_work_group}")
+        except Exception as e:
+            logging.error(f"Failed to send grid status to work group {target_work_group}: {e}")
+            
+    # 5. Отправка в группу "Увага! Увага!! Увага!!!" (-1004488057209)
+    attention_group_id = config.attention_group_id or -1004488057209
+    if attention_group_id:
+        try:
+            await bot.send_message(chat_id=attention_group_id, text=msg_to_groups, parse_mode="HTML")
+            logging.info(f"Sent grid status '{status_text}' for {display_name} to attention group {attention_group_id}")
+        except Exception as e:
+            logging.error(f"Failed to send grid status to attention group {attention_group_id}: {e}")
+
+    # 6. Сохранение отчета в БД
+    report_record = {
+        "user_id": user_id,
+        "username": message.from_user.username or "none",
+        "full_name": full_name,
+        "tc_name": tc_name,
+        "work_mode": status_text,
+        "start_time": current_time,
+        "load_power_percent": "-",
+        "load_power_kw": "-",
+        "gpu_status": status_text,
+        "battery_voltage": "-",
+        "time_label": f"Час події ({status_text})",
+        "is_short": True,
+        "obj_id": obj_id
+    }
+    try:
+        await add_report(report_record)
+        from app.api.ws import notify_new_report
+        asyncio.create_task(notify_new_report(report_record))
+    except Exception as e:
+        logging.error(f"Failed to record grid status report in DB: {e}")
+        
+    # 7. Ответ оператору
+    success_text = (
+        f"✅ Статус <b>«{status_text}»</b> для об'єкта <b>{display_name}</b> успішно зафіксовано!\n\n"
+        f"📢 Повідомлення надіслано в робочу групу та в групу «Увага! Увага!! Увага!!!»."
+    )
+    await message.answer(success_text, parse_mode="HTML", reply_markup=get_main_menu_keyboard(is_admin=is_admin, role=role))
 
 @router.message(ReportState.work_mode, F.text.in_(["Острів", "Мережа"]))
 async def set_work_mode_active(message: Message, state: FSMContext):

@@ -107,7 +107,8 @@ def get_admin_user_edit_keyboard() -> ReplyKeyboardMarkup:
 def get_work_mode_short_kb(hide_not_working: bool = False) -> ReplyKeyboardMarkup:
     """Returns a keyboard for work modes in short reports, optionally filtering out 'Not Working' ones."""
     buttons = [
-        [KeyboardButton(text="Острів"), KeyboardButton(text="Мережа")]
+        [KeyboardButton(text="Острів"), KeyboardButton(text="Мережа")],
+        [KeyboardButton(text="⚡️ Пропала мережа"), KeyboardButton(text="💡 З'явилась мережа")]
     ]
     if not hide_not_working:
         buttons.append([KeyboardButton(text="Не працює, готова до пуску")])

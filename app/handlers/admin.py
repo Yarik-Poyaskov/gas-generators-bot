@@ -242,9 +242,17 @@ async def cmd_admin_summary_report_today(message: Message, bot: Bot):
 @router.message(F.text == "Керування об'єктами")
 async def cmd_objects_mgmt(message: Message, state: FSMContext):
     await state.clear()
+    objects = await get_all_objects()
     await message.answer(
         "Управління об'єктами (ТРЦ/Локації):",
         reply_markup=get_objects_mgmt_keyboard()
+    )
+    if not objects:
+        await message.answer("Список об'єктів порожній.")
+        return
+    await message.answer(
+        "Оберіть об'єкт для керування:",
+        reply_markup=get_objects_inline_keyboard(objects, 0, config.users_per_page)
     )
 
 @router.message(F.text == "Список об'єктів")
@@ -585,14 +593,20 @@ async def process_manage_object(callback: CallbackQuery):
     is_req = bool(obj.get('is_required', 1))
     req_text = "✅ ТАК" if is_req else "❌ НІ"
 
-    text = f"🏢 **Керування об'єктом**\n\n"
-    text += f"ID: `{obj['id']}`\n"
-    text += f"Назва: **{obj['name']}**\n"
-    text += f"Група: {group_info}\n"
-    text += f"Обов'язковий звіт і графік: {req_text}"
+    import html
+    text = (
+        f"🏢 <b>Керування об'єктом</b>\n\n"
+        f"ID: <code>{obj['id']}</code>\n"
+        f"Назва: <b>{html.escape(obj['name'])}</b>\n"
+        f"Група: {html.escape(str(group_info))}\n"
+        f"Обов'язковий звіт і графік: <b>{req_text}</b>"
+    )
 
-    await callback.message.edit_text(text, reply_markup=get_object_manage_kb(obj['id'], is_req), parse_mode="Markdown")
-    await callback.answer()
+    await callback.message.edit_text(text, reply_markup=get_object_manage_kb(obj['id'], is_req), parse_mode="HTML")
+    try:
+        await callback.answer()
+    except Exception:
+        pass
 
 @router.callback_query(F.data.startswith("toggle_obj_req:"))
 async def process_toggle_obj_required(callback: CallbackQuery):

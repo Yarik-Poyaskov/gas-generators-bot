@@ -10,6 +10,20 @@ from app.states.reminder_comment import ReminderCommentStates
 router = Router()
 logger = logging.getLogger(__name__)
 
+def format_event_action(event_type: str) -> str:
+    """Formats event type into human readable Ukrainian action."""
+    if event_type == 'start':
+        return "запуску"
+    elif event_type == 'stop':
+        return "зупинки"
+    elif event_type == 'power_change':
+        return "зміни потужності"
+    elif event_type == 'mode_change':
+        return "зміни режиму роботи"
+    elif event_type == 'combined_change':
+        return "зміни режиму та потужності"
+    return "події"
+
 @router.callback_query(F.data.startswith("remind_ignore:"))
 async def handle_remind_ignore(callback: CallbackQuery, bot: Bot):
     """Handles 'Ignore' button in reminders."""
@@ -28,7 +42,7 @@ async def handle_remind_ignore(callback: CallbackQuery, bot: Bot):
     # 2. Get schedule/object info
     sched = await get_schedule_by_id(schedule_id)
     obj_name = sched['tc_name'] if sched else "Невідомий об'єкт"
-    action = "запуску" if event_type == 'start' else "зупинки"
+    action = format_event_action(event_type)
 
     # 3. Notify monitoring group
     report_group_id = config.group_id
@@ -92,7 +106,7 @@ async def handle_remind_comment_input(message: Message, state: FSMContext, bot: 
     # 2. Get schedule/object info
     sched = await get_schedule_by_id(schedule_id)
     obj_name = sched['tc_name'] if sched else "Невідомий об'єкт"
-    action = "запуску" if event_type == 'start' else "зупинки"
+    action = format_event_action(event_type)
 
     comment_text = message.text or message.caption or "(без тексту)"
     

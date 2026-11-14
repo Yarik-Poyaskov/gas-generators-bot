@@ -979,24 +979,40 @@ async def log_sent_reminder(schedule_id: int, event_type: str, event_time: str):
 
 async def check_report_exists(object_name: str, report_type: str, target_datetime: datetime) -> bool:
     """
-    Checks if a report of a certain type (start/stop) exists for an object
+    Checks if a report of a certain type (start/stop/change) exists for an object
     that was created around or after the target event time.
     target_datetime: event time in UTC.
     """
     # Look for reports created within a window: from 1 hour before event to now
     start_window = target_datetime - timedelta(hours=1)
     
+    # Extract short name if object_name is in format 'Full Name (SHORT)'
+    match = re.search(r'\((.*?)\)', object_name)
+    short_name = match.group(1) if match else object_name
+    
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            """
-            SELECT 1 FROM reports 
-            WHERE tc_name LIKE '%' || ? || '%' 
-            AND time_type = ? 
-            AND created_at >= ?
-            LIMIT 1
-            """,
-            (object_name, report_type, start_window.strftime("%Y-%m-%d %H:%M:%S"))
-        )
+        if report_type in ['power_change', 'mode_change', 'combined_change', 'change']:
+            # For parameter changes, any report submitted for this object around/after event time counts
+            cursor = await db.execute(
+                """
+                SELECT 1 FROM reports 
+                WHERE (tc_name LIKE '%' || ? || '%' OR tc_name LIKE '%' || ? || '%')
+                AND created_at >= ?
+                LIMIT 1
+                """,
+                (object_name, short_name, start_window.strftime("%Y-%m-%d %H:%M:%S"))
+            )
+        else:
+            cursor = await db.execute(
+                """
+                SELECT 1 FROM reports 
+                WHERE (tc_name LIKE '%' || ? || '%' OR tc_name LIKE '%' || ? || '%')
+                AND time_type = ? 
+                AND created_at >= ?
+                LIMIT 1
+                """,
+                (object_name, short_name, report_type, start_window.strftime("%Y-%m-%d %H:%M:%S"))
+            )
         return await cursor.fetchone() is not None
 
 # --- Shift Management Functions ---

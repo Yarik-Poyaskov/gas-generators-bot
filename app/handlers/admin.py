@@ -589,7 +589,7 @@ async def process_manage_object(callback: CallbackQuery):
     text += f"ID: `{obj['id']}`\n"
     text += f"Назва: **{obj['name']}**\n"
     text += f"Група: {group_info}\n"
-    text += f"Обов'язковий звіт: {req_text}"
+    text += f"Обов'язковий звіт і графік: {req_text}"
 
     await callback.message.edit_text(text, reply_markup=get_object_manage_kb(obj['id'], is_req), parse_mode="Markdown")
     await callback.answer()

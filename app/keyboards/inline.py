@@ -374,7 +374,7 @@ def get_object_manage_kb(object_id: int, is_required: bool = True) -> InlineKeyb
     req_status = "✅ ТАК" if is_required else "❌ НІ"
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=f"📋 Обов'язковий звіт: {req_status}", callback_data=f"toggle_obj_req:{object_id}:{1 if is_required else 0}")],
+            [InlineKeyboardButton(text=f"📋 Обов'язковий звіт і графік: {req_status}", callback_data=f"toggle_obj_req:{object_id}:{1 if is_required else 0}")],
             [InlineKeyboardButton(text="✏️ Змінити назву", callback_data=f"edit_obj_name:{object_id}")],
             [InlineKeyboardButton(text="💬 Прив'язати групу", callback_data=f"link_obj_grp:{object_id}")],
             [InlineKeyboardButton(text="👥 Показати користувачів", callback_data=f"show_obj_users:{object_id}")],

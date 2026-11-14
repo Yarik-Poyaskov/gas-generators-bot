@@ -661,17 +661,21 @@ async def confirm_schedule(schedule_id: int, user_db_id: int):
         await db.execute("UPDATE trader_schedules SET confirmed_by = ?, confirmed_at = CURRENT_TIMESTAMP WHERE id = ?", (user_db_id, schedule_id))
         await db.commit()
 
-async def get_schedules_for_report(date_str: str):
+async def get_schedules_for_report(date_str: str, only_required: bool = True):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        # Добавляем o.id (object_id) в выборку для точной идентификации объекта в логике напоминаний
-        cursor = await db.execute("""
-            SELECT o.id as object_id, o.name as tc_name, o.telegram_group_id, 
+        # Фильтруем объекты: если only_required=True, включаем только обязательные объекты (is_required=1)
+        # либо объекты, для которых график реально был подан трейдером (s.id IS NOT NULL).
+        # Объекты с is_required=0 без поданного графика исключаются из отчета.
+        where_clause = "WHERE o.is_required = 1 OR s.id IS NOT NULL" if only_required else ""
+        cursor = await db.execute(f"""
+            SELECT o.id as object_id, o.name as tc_name, o.telegram_group_id, o.is_required,
                    s.id as schedule_id, s.is_not_working, s.confirmed_by, 
                    u.full_name as confirmed_user_name, s.confirmed_at 
             FROM objects o 
             LEFT JOIN trader_schedules s ON o.id = s.object_id AND s.target_date = ? 
             LEFT JOIN users u ON s.confirmed_by = u.id 
+            {where_clause}
             ORDER BY o.name
         """, (date_str,))
         rows = await cursor.fetchall()

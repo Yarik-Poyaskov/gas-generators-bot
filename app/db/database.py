@@ -38,6 +38,8 @@ async def init_db():
                 pressure_engine_after TEXT,
                 battery_voltage_haas TEXT,
                 bearing_lubrication_limit REAL,
+                temp_coolant_t206 REAL,
+                temp_coolant_t207 REAL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -61,6 +63,14 @@ async def init_db():
         # Ensure is_required exists in objects
         try:
             await db.execute("ALTER TABLE objects ADD COLUMN is_required INTEGER DEFAULT 1")
+        except: pass
+
+        # Ensure temp_coolant_t206 and temp_coolant_t207 exist in reports
+        try:
+            await db.execute("ALTER TABLE reports ADD COLUMN temp_coolant_t206 REAL")
+        except: pass
+        try:
+            await db.execute("ALTER TABLE reports ADD COLUMN temp_coolant_t207 REAL")
         except: pass
 
         await db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
@@ -165,8 +175,9 @@ async def add_report(data: Dict[str, Any]):
                 photo_multimeter_id, photo_shos_id, time_type, is_short,
                 pressure_intercooler_before, pressure_intercooler_after,
                 pressure_engine_before, pressure_engine_after,
-                battery_voltage_haas, bearing_lubrication_limit
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                battery_voltage_haas, bearing_lubrication_limit,
+                temp_coolant_t206, temp_coolant_t207
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.get("user_id"), data.get("username"), data.get("full_name"),
@@ -179,7 +190,8 @@ async def add_report(data: Dict[str, Any]):
                 data.get("photo_shos_id"), time_type, 1 if data.get("is_short") else 0,
                 data.get("pressure_intercooler_before"), data.get("pressure_intercooler_after"),
                 data.get("pressure_engine_before"), data.get("pressure_engine_after"),
-                data.get("battery_voltage_haas"), data.get("bearing_lubrication_limit")
+                data.get("battery_voltage_haas"), data.get("bearing_lubrication_limit"),
+                data.get("temp_coolant_t206"), data.get("temp_coolant_t207")
             ),
         )
         await db.commit()

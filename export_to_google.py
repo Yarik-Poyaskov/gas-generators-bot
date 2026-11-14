@@ -56,7 +56,9 @@ def export_to_google(report_data: dict):
             report_data.get('total_mwh'),
             report_data.get('total_hours'),
             report_data.get('oil_sampling_limit'),
-            report_data.get('bearing_lubrication_limit')
+            report_data.get('bearing_lubrication_limit'),
+            report_data.get('temp_coolant_t206'),
+            report_data.get('temp_coolant_t207')
         ]
         
         # value_input_option='USER_ENTERED' заставляет Google Sheets парсить строки как даты/числа

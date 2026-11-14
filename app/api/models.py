@@ -51,6 +51,8 @@ class ReportInfo(BaseModel):
     load_power_kw: Optional[str] = None
     gpu_status: str
     battery_voltage: Optional[str] = None
+    temp_coolant_t206: Optional[float] = None
+    temp_coolant_t207: Optional[float] = None
     pressure_before: Optional[float] = None
     pressure_after: Optional[str] = None
     pressure_intercooler_before: Optional[float] = None

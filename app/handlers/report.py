@@ -494,8 +494,42 @@ async def set_battery_voltage(message: Message, state: FSMContext):
         final_val = "/".join(formatted_parts)
 
     await state.update_data(battery_voltage=final_val)
-    await state.set_state(ReportState.pressure_intercooler_before)
-    await message.answer("2. Тиск антифризу в контурі інтеркулера (малий) до пуску ГПУ (GK/MCC, до насоса) в бар:", reply_markup=get_simple_cancel_kb())
+    await state.set_state(ReportState.temp_coolant_t206)
+    await message.answer(
+        "6. Температура охолоджуючої рідини двигуна Т206, Т207.\n\n"
+        "6.1 Введіть температуру Т206 (°C):", 
+        reply_markup=get_simple_cancel_kb()
+    )
+
+@router.message(ReportState.temp_coolant_t206)
+async def set_temp_coolant_t206(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+    if not message.text:
+        await message.answer("Будь ласка, введіть число (температуру в °C).")
+        return
+    try:
+        val = float(message.text.replace(",", "."))
+        await state.update_data(temp_coolant_t206=val)
+        await state.set_state(ReportState.temp_coolant_t207)
+        await message.answer("6.2 Введіть температуру Т207 (°C):", reply_markup=get_simple_cancel_kb())
+    except ValueError:
+        await message.answer("⚠️ Некоректне значення. Будь ласка, введіть число (наприклад: 42 або 38.5):")
+
+@router.message(ReportState.temp_coolant_t207)
+async def set_temp_coolant_t207(message: Message, state: FSMContext):
+    if message.text == "Відміна":
+        return await cmd_cancel_report(message, state)
+    if not message.text:
+        await message.answer("Будь ласка, введіть число (температуру в °C).")
+        return
+    try:
+        val = float(message.text.replace(",", "."))
+        await state.update_data(temp_coolant_t207=val)
+        await state.set_state(ReportState.pressure_intercooler_before)
+        await message.answer("7. Тиск антифризу в контурі інтеркулера (малий) до пуску ГПУ (GK/MCC, до насоса) в бар:", reply_markup=get_simple_cancel_kb())
+    except ValueError:
+        await message.answer("⚠️ Некоректне значення. Будь ласка, введіть число (наприклад: 42 або 38.5):")
 
 @router.message(ReportState.pressure_intercooler_before)
 async def set_pressure_intercooler_before(message: Message, state: FSMContext):
@@ -803,18 +837,23 @@ async def show_final_confirmation(message: Message, state: FSMContext):
         haas_val = data.get('battery_voltage_haas')
         haas_display = f"{haas_val} В" if haas_val and "в" not in str(haas_val).lower() else f"{haas_val}"
         
+        t206 = data.get('temp_coolant_t206')
+        t207 = data.get('temp_coolant_t207')
+        temp_coolant_display = f"Т206: {t206}°C, Т207: {t207}°C" if t206 is not None and t207 is not None else "—"
+
         fields += [
             ("5. Напруга АКБ", data.get('battery_voltage')),
-            ("6. Тиск інтеркулера до пуску ГПУ (GK/MCC, до насоса)", f"{data.get('pressure_intercooler_before')} бар"),
-            ("7. Тиск інтеркулера після пуску ГПУ (GK/MCC, до насоса)", f"{data.get('pressure_intercooler_after')} бар" if data.get('pressure_intercooler_after') == "-" else f"{data.get('pressure_intercooler_after')} бар"),
-            ("8. Тиск двигуна до пуску ГПУ (NK/ECC, до насоса)", f"{data.get('pressure_engine_before')} бар"),
-            ("9. Тиск двигуна після пуску ГПУ (NK/ECC, до насоса)", f"{data.get('pressure_engine_after')} бар" if data.get('pressure_engine_after') == "-" else f"{data.get('pressure_engine_after')} bar" if False else f"{data.get('pressure_engine_after')} бар"),
-            ("10. Напруга АКБ шафи керування (HAAS)", haas_display),
-            ("11. Вироблено", f"{data.get('total_mwh')} МВт*год"),
-            ("12. Відпрацьовано", f"{data.get('total_hours')} м/год"),
-            ("13. До відбору оливи", f"{data.get('oil_sampling_limit')} м/год"),
-            ("14. До змащування підшипника генератора", f"{data.get('bearing_lubrication_limit')} м/год"),
-            ("15. Звірка апаратів", "Підтверджено")
+            ("6. Температура охолоджуючої рідини двигуна Т206, Т207", temp_coolant_display),
+            ("7. Тиск інтеркулера до пуску ГПУ (GK/MCC, до насоса)", f"{data.get('pressure_intercooler_before')} бар"),
+            ("8. Тиск інтеркулера після пуску ГПУ (GK/MCC, до насоса)", f"{data.get('pressure_intercooler_after')} бар" if data.get('pressure_intercooler_after') == "-" else f"{data.get('pressure_intercooler_after')} бар"),
+            ("9. Тиск двигуна до пуску ГПУ (NK/ECC, до насоса)", f"{data.get('pressure_engine_before')} бар"),
+            ("10. Тиск двигуна після пуску ГПУ (NK/ECC, до насоса)", f"{data.get('pressure_engine_after')} бар" if data.get('pressure_engine_after') == "-" else f"{data.get('pressure_engine_after')} бар"),
+            ("11. Напруга АКБ шафи керування (HAAS)", haas_display),
+            ("12. Вироблено", f"{data.get('total_mwh')} МВт*год"),
+            ("13. Відпрацьовано", f"{data.get('total_hours')} м/год"),
+            ("14. До відбору оливи", f"{data.get('oil_sampling_limit')} м/год"),
+            ("15. До змащування підшипника генератора", f"{data.get('bearing_lubrication_limit')} м/год"),
+            ("16. Звірка апаратів", "Підтверджено")
         ]
 
     for label, val in fields:
@@ -925,20 +964,25 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
         haas_val = data.get('battery_voltage_haas')
         haas_display = f"{haas_val} В" if haas_val and "в" not in str(haas_val).lower() else f"{haas_val}"
 
-        # For full report, we show points 1-12
+        t206 = data.get('temp_coolant_t206')
+        t207 = data.get('temp_coolant_t207')
+        temp_coolant_str = f"Т206: {t206}°C, Т207: {t207}°C" if t206 is not None and t207 is not None else "—"
+
+        # For full report, we show points
         group_summary += (
             f"\n<b>1. Напруга АКБ:</b> {data.get('battery_voltage')}\n"
-            f"<b>2. Тиск антифризу в контурі інтеркулера (малий) до пуску ГПУ (GK/MCC, до насоса):</b> {data.get('pressure_intercooler_before')} бар\n"
-            f"<b>3. Тиск антифризу в контурі інтеркулера (малий) після пуску ГПУ (GK/MCC, до насоса):</b> {data.get('pressure_intercooler_after')} бар\n"
-            f"<b>4. Тиск антифризу в контурі двигуна (великий) до пуску ГПУ (NK/ECC, до насоса):</b> {data.get('pressure_engine_before')} бар\n"
-            f"<b>5. Тиск антифризу в контурі двигуна (великий) після пуску ГПУ (NK/ECC, до насоса):</b> {data.get('pressure_engine_after')} бар\n"
-            f"<b>6. Напруга АКБ шафи керування (HAAS):</b> {haas_display}\n"
-            f"<b>7. Всього вироблено:</b> {data.get('total_mwh')} МВт*год\n"
-            f"<b>8. Всього відпрацьовано:</b> {data.get('total_hours')} м/год\n"
-            f"<b>9. До відбору оливи:</b> {data.get('oil_sampling_limit')} м/год\n"
-            f"<b>10. До змащування підшипника генератора:</b> {data.get('bearing_lubrication_limit')} м/год\n"
-            f"<b>11. Звірка апаратів:</b> Підтверджено\n"
-            f"<b>12. Статус роботи:</b> {status_display}"
+            f"<b>2. Температура охолоджуючої рідини двигуна Т206, Т207:</b> {temp_coolant_str}\n"
+            f"<b>3. Тиск антифризу в контурі інтеркулера (малий) до пуску ГПУ (GK/MCC, до насоса):</b> {data.get('pressure_intercooler_before')} бар\n"
+            f"<b>4. Тиск антифризу в контурі інтеркулера (малий) після пуску ГПУ (GK/MCC, до насоса):</b> {data.get('pressure_intercooler_after')} бар\n"
+            f"<b>5. Тиск антифризу в контурі двигуна (великий) до пуску ГПУ (NK/ECC, до насоса):</b> {data.get('pressure_engine_before')} бар\n"
+            f"<b>6. Тиск антифризу в контурі двигуна (великий) після пуску ГПУ (NK/ECC, до насоса):</b> {data.get('pressure_engine_after')} бар\n"
+            f"<b>7. Напруга АКБ шафи керування (HAAS):</b> {haas_display}\n"
+            f"<b>8. Всього вироблено:</b> {data.get('total_mwh')} МВт*год\n"
+            f"<b>9. Всього відпрацьовано:</b> {data.get('total_hours')} м/год\n"
+            f"<b>10. До відбору оливи:</b> {data.get('oil_sampling_limit')} м/год\n"
+            f"<b>11. До змащування підшипника генератора:</b> {data.get('bearing_lubrication_limit')} м/год\n"
+            f"<b>12. Звірка апаратів:</b> Підтверджено\n"
+            f"<b>13. Статус роботи:</b> {status_display}"
         )
 
     async def deliver(chat_id, custom_text=None):
@@ -1013,6 +1057,51 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
                     asyncio.create_task(send_oil_warning(bot, linked_group_id))
         except Exception as e:
             logging.error(f"Error checking oil sampling limit alert: {e}")
+
+    # 8. Check for low engine coolant temperature (<= 39°C)
+    if not is_short:
+        try:
+            t206_val = data.get('temp_coolant_t206')
+            t207_val = data.get('temp_coolant_t207')
+            
+            is_low_t206 = False
+            is_low_t207 = False
+            if t206_val is not None:
+                try:
+                    is_low_t206 = float(str(t206_val).replace(',', '.')) <= 39.0
+                except: pass
+            if t207_val is not None:
+                try:
+                    is_low_t207 = float(str(t207_val).replace(',', '.')) <= 39.0
+                except: pass
+
+            if is_low_t206 or is_low_t207:
+                low_temp_warning = (
+                    "⚠️ Зверніть увагу на низьку температуру двигуна, "
+                    "перевірте наявність напруги власних потреб та роботу насосу контуру охол. двигуна."
+                )
+                
+                # 1. Попередження для Оператора ГПУ
+                try:
+                    await bot.send_message(chat_id=user_id, text=low_temp_warning)
+                except Exception as e:
+                    logging.error(f"Failed to send low coolant temp alert to operator {user_id}: {e}")
+
+                # 2. Попередження в робочу групу об'єкта
+                target_group = linked_group_id or config.group_id
+                if target_group:
+                    async def send_low_temp_alert(bot_instance: Bot, group_id: int):
+                        await asyncio.sleep(4)  # Small delay after report delivery
+                        try:
+                            await bot_instance.send_message(
+                                chat_id=group_id,
+                                text=low_temp_warning
+                            )
+                        except Exception as e:
+                            logging.error(f"Failed to send low coolant temp alert to group {group_id}: {e}")
+                    asyncio.create_task(send_low_temp_alert(bot, target_group))
+        except Exception as e:
+            logging.error(f"Error checking engine coolant temperature alert: {e}")
 
 
     await callback.message.edit_text("✅ Звіт успішно збережено!")

@@ -578,6 +578,8 @@ def get_report_fields_kb(report: dict) -> InlineKeyboardMarkup:
         ('start_time', 'Час запуску'),
         ('gpu_status', 'Статус ГПУ'),
         ('battery_voltage', 'Напруга АКБ'),
+        ('temp_coolant_t206', 'Темп. Т206'),
+        ('temp_coolant_t207', 'Темп. Т207'),
         ('pressure_intercooler_before', 'Тиск і/к до'),
         ('pressure_intercooler_after', 'Тиск і/к після'),
         ('pressure_engine_before', 'Тиск двиг. до'),

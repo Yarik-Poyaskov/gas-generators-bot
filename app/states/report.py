@@ -14,6 +14,8 @@ class ReportState(StatesGroup):
     load_power_kw = State()      # Новое состояние для Потужність (кВт)
     gpu_status = State()
     battery_voltage = State()
+    temp_coolant_t206 = State()  # Температура охолоджуючої рідини Т206 (°C)
+    temp_coolant_t207 = State()  # Температура охолоджуючої рідини Т207 (°C)
     pressure_intercooler_before = State()
     pressure_intercooler_after = State()
     pressure_engine_before = State()

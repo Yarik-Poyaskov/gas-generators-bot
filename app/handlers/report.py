@@ -1117,8 +1117,7 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     if linked_group_id: await deliver(linked_group_id)
     
     # 3. Отправка в группу трейдеров SPECIAL_GROUP_ID (только если send_to_special=True)
-    # Трейдерам НЕ нужны: 🟢 Зелене коло и 🔴 Червоне коло
-    # Трейдерам НУЖНЫ: 🟡 Жовте коло, 🟠 Помаранчове коло, 🟣 Фіолетове коло, 🟥 Червоний квадрат, 🟩/🟨 квадраты
+    # Отправляются все статусы пуска и останова: 🟢, 🟡, 🟠, 🟣, 🔴, 🟩, 🟨, 🟥
     if is_short and config.special_group_id and status_info.get('send_to_special', False):
         # Remove "Заповнив:" line for special group
         special_summary = "\n".join([line for line in group_summary.split("\n") if "Заповнив:" not in line])

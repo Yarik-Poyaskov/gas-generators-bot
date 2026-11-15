@@ -204,7 +204,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "code": "red_circle",
                 "title": "Запуск вчасно (з технічними аваріями)",
                 "display_status": "🔴 Запуск вчасно і планово, але з технічними аваріями",
-                "send_to_special": False,    # Трейдерам НЕ потрібно (обсяг не страждає)
+                "send_to_special": True,     # Трейдерам відправляємо
                 "send_to_attention": False,
                 "reason": "Started on time, mode match, but technical accident reported"
             }
@@ -215,7 +215,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
             "code": "green_circle",
             "title": "Плановий старт",
             "display_status": "🟢 Плановий старт (згідно графіка)",
-            "send_to_special": False,        # Трейдерам НЕ потрібно
+            "send_to_special": True,         # Трейдерам відправляємо
             "send_to_attention": False,
             "reason": "Planned start on time, mode matches, stable"
         }
@@ -296,3 +296,4 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
         "send_to_attention": False,
         "reason": "Normal ongoing operation"
     }
+

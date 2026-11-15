@@ -895,8 +895,11 @@ async def show_final_confirmation(message: Message, state: FSMContext):
     work_mode = data.get('work_mode', '')
     gpu_status = data.get('gpu_status', '')
 
+    from app.services.status_classifier import classify_report_status
+    status_info = await classify_report_status(data)
+
     if is_short:
-        emoji = get_status_emoji(gpu_status, work_mode)
+        emoji = status_info['marker']
         summary = f"📋 <b>{emoji} Статус ГПУ: {display_name}</b>\n\n"
     else:
         summary = f"📋 <b>ПЕРЕВІРКА ДАНИХ</b>\n\n"
@@ -927,12 +930,13 @@ async def show_final_confirmation(message: Message, state: FSMContext):
     gpu_status = data.get('gpu_status')
     
     display_work_mode = work_mode
-    display_gpu_status = gpu_status
+    display_gpu_status = status_info['display_status'] if is_short else gpu_status
 
     if is_short:
         if "не готова" in work_mode or "готова до пуску" in work_mode:
             display_work_mode = "—"
-            display_gpu_status = work_mode
+            if not display_gpu_status:
+                display_gpu_status = work_mode
 
     fields = [
         ("1. Режим роботи", display_work_mode),
@@ -982,6 +986,10 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     is_short = data.get("is_short", False)
     current_date = datetime.now().strftime("%d.%m.%Y")
 
+    # 0. Classify status (Circles, Squares, Triangle)
+    from app.services.status_classifier import classify_report_status
+    status_info = await classify_report_status(data)
+
     # DB & Google Sheets
     await add_report(data)
     
@@ -1016,7 +1024,7 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     gpu_status = data.get('gpu_status', '')
     
     if is_short:
-        emoji = get_status_emoji(gpu_status, work_mode)
+        emoji = status_info['marker']
         group_summary = f"{emoji} <b>Статус ГПУ: {display_name}</b>\n\n"
     else:
         group_summary = f"✅ <b>Звіт по ГПУ</b>\n\n"
@@ -1041,14 +1049,13 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
 
         # Logic for point 1 and 4 in short report
         work_mode = data.get('work_mode')
-        gpu_status = data.get('gpu_status')
-        
         display_work_mode = work_mode
-        display_gpu_status = gpu_status
+        display_gpu_status = status_info['display_status']
         
         if "не готова" in work_mode or "готова до пуску" in work_mode:
             display_work_mode = "—"
-            display_gpu_status = work_mode
+            if not display_gpu_status:
+                display_gpu_status = work_mode
 
         group_summary += (
             f"\n<b>1. Режим роботи:</b> {display_work_mode}\n"
@@ -1109,7 +1116,10 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     await deliver(config.group_id)
     if linked_group_id: await deliver(linked_group_id)
     
-    if is_short and config.special_group_id:
+    # 3. Отправка в группу трейдеров SPECIAL_GROUP_ID (только если send_to_special=True)
+    # Трейдерам НЕ нужны: 🟢 Зелене коло и 🔴 Червоне коло
+    # Трейдерам НУЖНЫ: 🟡 Жовте коло, 🟠 Помаранчове коло, 🟣 Фіолетове коло, 🟥 Червоний квадрат, 🟩/🟨 квадраты
+    if is_short and config.special_group_id and status_info.get('send_to_special', False):
         # Remove "Заповнив:" line for special group
         special_summary = "\n".join([line for line in group_summary.split("\n") if "Заповнив:" not in line])
         await deliver(config.special_group_id, custom_text=special_summary)
@@ -1119,10 +1129,11 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     if is_obh and config.obh_special_group_id:
         await deliver(config.obh_special_group_id)
 
-    # 5. Дополнительно шлем копии сообщений с пометкой "Авария" в группу ALERT_GROUP
-    has_anomaly = "аварі" in group_summary.lower() or "авари" in group_summary.lower()
-    if is_short and has_anomaly and config.alert_group:
-        await deliver(config.alert_group)
+    # 5. Отправка в мониторинговую группу "Увага! Увага!! Увага!!!" (ATTENTION_GROUP_ID / ALERT_GROUP)
+    # Сюда дублируются: 🟥 Червоний квадрат, 🟡 Жовте коло, 🟠 Помаранчове коло, 🟣 Фіолетове коло
+    attention_target = config.attention_group_id or config.alert_group
+    if attention_target and status_info.get('send_to_attention', False):
+        await deliver(attention_target)
 
     # 6. Check for low battery voltage (< config.min_battery_voltage)
     if not is_short and linked_group_id:

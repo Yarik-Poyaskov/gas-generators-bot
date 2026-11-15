@@ -439,6 +439,27 @@ async def get_latest_checklist_for_object(object_id: int):
             "report": report
         }
 
+async def get_latest_report_for_object(object_id: int, exclude_report_id: Optional[int] = None):
+    """Returns the most recent report (short or full) for a given object."""
+    obj = await get_object_by_id(object_id)
+    if not obj:
+        return None
+    obj_name = obj["name"]
+    match = re.search(r'\((.*?)\)', obj_name)
+    short_name = match.group(1) if match else obj_name
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        query = "SELECT * FROM reports WHERE (tc_name LIKE '%' || ? || '%' OR tc_name = ?)"
+        params = [short_name, obj_name]
+        if exclude_report_id:
+            query += " AND id != ?"
+            params.append(exclude_report_id)
+        query += " ORDER BY created_at DESC, id DESC LIMIT 1"
+        cursor = await db.execute(query, tuple(params))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
 # --- User Functions ---
 
 async def get_user(user_id: int):

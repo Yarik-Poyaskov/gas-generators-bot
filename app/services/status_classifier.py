@@ -20,17 +20,24 @@ def time_to_mins(t_str: Any) -> Optional[int]:
         pass
     return None
 
+def calc_time_diff(actual_mins: int, planned_mins: int) -> int:
+    """Calculates actual_mins - planned_mins handling midnight wrap (e.g. 00:05 vs 24:00)."""
+    if planned_mins >= 1320 and actual_mins <= 180:
+        return (actual_mins + 1440) - planned_mins
+    return actual_mins - planned_mins
+
 async def classify_report_status(data: Dict[str, Any], exclude_report_id: Optional[int] = None) -> Dict[str, Any]:
     """
-    Classifies a report into one of the 8 status categories:
+    Classifies a report into one of the status categories:
     🟢 Зелене коло: плановий старт згідно графіка трейдера
-    🟡 Жовте коло: старт із запізненням > 5 хв або поза графіком (ручний режим)
+    🟡 Жовте коло: несвоєчасний старт (запізнення > 5 хв або без графіка)
     🟠 Помаранчове коло: старт вчасно, але не співпадає режим (мережа/острів)
     🟣 Фіолетове коло: старт ГПУ після аварійної зупинки
     🔴 Червоне коло: запуск вчасно і планово, але з технічними аваріями
     
-    🟩 Зелений квадрат: планова зупинка
-    🟨 Жовтий квадрат: ГПУ допрацювала по графіку і зупинилась з несправностями (подальший пуск можливий)
+    🟩 Зелений квадрат: планова зупинка вчасно
+    🟨 Жовтий квадрат: несвоєчасна зупинка (переробіток часу > 5 хв або без графіка)
+    🟪 Фіолетовий квадрат: ГПУ допрацювала по графіку і зупинилась з несправностями (подальший пуск можливий)
     🟥 Червоний квадрат: аварійна зупинка (експлуатація неможлива)
     
     ⚠️ Жовтий трикутник: попередження під час роботи/огляду без зупинки
@@ -42,6 +49,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
       - display_status: text for point 4 in report
       - send_to_special: bool (send to SPECIAL_GROUP_ID?)
       - send_to_attention: bool (send to ATTENTION_GROUP_ID?)
+      - imbalance_warning: bool (attach imbalance warning banner?)
       - reason: debug explanation
     """
     obj_id = data.get("obj_id")
@@ -113,6 +121,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": "🟣 Старт ГПУ після аварійної зупинки",
                 "send_to_special": True,     # Трейдерам потрібно!
                 "send_to_attention": True,   # В "Увага" потрібно!
+                "imbalance_warning": True,
                 "reason": "Previous report was in accident state"
             }
 
@@ -126,6 +135,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": "🟡 Неплановий старт (без графіка / ручний режим)",
                 "send_to_special": True,     # Трейдерам потрібно!
                 "send_to_attention": True,   # В "Увага" потрібно!
+                "imbalance_warning": True,
                 "reason": "No trader schedule found for today"
             }
 
@@ -138,6 +148,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": f"🟡 Неплановий старт ({start_time_str})",
                 "send_to_special": True,
                 "send_to_attention": True,
+                "imbalance_warning": True,
                 "reason": "No parseable start time"
             }
 
@@ -161,11 +172,12 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": f"🟡 Неплановий старт (поза графіком трейдера, час: {start_time_str})",
                 "send_to_special": True,
                 "send_to_attention": True,
+                "imbalance_warning": True,
                 "reason": f"Start time {start_time_str} is outside schedule intervals"
             }
 
         planned_start_mins = time_to_mins(best_inv.get("start"))
-        delay_mins = start_mins - planned_start_mins
+        delay_mins = calc_time_diff(start_mins, planned_start_mins)
 
         # Rule 2: 🟡 Жовте коло - запізнення > 5 хвилин
         if delay_mins > 5:
@@ -176,6 +188,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": f"🟡 Запуск із запізненням (+{delay_mins} хв, план {best_inv.get('start')}, факт {start_time_str})",
                 "send_to_special": True,
                 "send_to_attention": True,
+                "imbalance_warning": True,
                 "reason": f"Start delay of {delay_mins} mins (> 5 mins)"
             }
 
@@ -192,6 +205,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": f"🟠 Не співпадає режим роботи (план: {planned_mode}, факт: {work_mode})",
                 "send_to_special": True,
                 "send_to_attention": True,
+                "imbalance_warning": True,
                 "reason": f"Mode mismatch: planned {planned_mode} vs actual {work_mode}"
             }
 
@@ -206,6 +220,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": "🔴 Запуск вчасно і планово, але з технічними аваріями",
                 "send_to_special": True,     # Трейдерам відправляємо
                 "send_to_attention": False,
+                "imbalance_warning": False,
                 "reason": "Started on time, mode match, but technical accident reported"
             }
 
@@ -217,6 +232,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
             "display_status": "🟢 Плановий старт (згідно графіка)",
             "send_to_special": True,         # Трейдерам відправляємо
             "send_to_attention": False,
+            "imbalance_warning": False,
             "reason": "Planned start on time, mode matches, stable"
         }
 
@@ -227,18 +243,8 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
         has_accident = "аварі" in gpu_status.lower()
         is_hard_accident_mode = ("не готова" in work_mode.lower() or "аварії" in work_mode.lower())
 
-        # Check if stop matches end of schedule
-        stopped_at_end_of_schedule = False
-        stop_mins = time_to_mins(start_time_str)
-        if stop_mins is not None and intervals:
-            for inv in intervals:
-                end_mins = time_to_mins(inv.get("end"))
-                if end_mins is not None and abs(stop_mins - end_mins) <= 25:
-                    stopped_at_end_of_schedule = True
-                    break
-
-        # Rule: 🟥 Червоний квадрат - аварійна зупинка, подальша експлуатація неможлива
-        if is_hard_accident_mode or (has_accident and not stopped_at_end_of_schedule):
+        # If hard accident mode is chosen (ГПУ в аварії, не готова до пуску)
+        if is_hard_accident_mode:
             return {
                 "marker": "🟥",
                 "code": "red_square",
@@ -246,30 +252,137 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
                 "display_status": "🟥 Аварійна зупинка (подальша експлуатація неможлива)",
                 "send_to_special": True,     # Трейдерам потрібно!
                 "send_to_attention": True,   # В "Увага" обов'язково!
-                "reason": "Accident stop / hard accident mode"
+                "imbalance_warning": True,
+                "reason": "Hard accident mode selected"
             }
 
-        # Rule: 🟨 Жовтий квадрат - допрацювала по графіку, але зупинилась з несправностями
-        if has_accident:
+        stop_mins = time_to_mins(start_time_str)
+
+        # If no schedule found on today:
+        if not intervals:
+            if has_accident:
+                return {
+                    "marker": "🟥",
+                    "code": "red_square",
+                    "title": "Аварійна зупинка",
+                    "display_status": "🟥 Аварійна зупинка (подальша експлуатація неможлива)",
+                    "send_to_special": True,
+                    "send_to_attention": True,
+                    "imbalance_warning": True,
+                    "reason": "Accident stop without schedule"
+                }
             return {
                 "marker": "🟨",
                 "code": "yellow_square",
-                "title": "Зупинка з несправностями",
-                "display_status": "🟨 Зупинка з несправностями (подальший пуск можливий)",
+                "title": "Непланова зупинка (ручний режим)",
+                "display_status": "🟨 Непланова зупинка (без графіка / ручний режим)",
                 "send_to_special": True,
-                "send_to_attention": False,
-                "reason": "Completed schedule but stopped with defects"
+                "send_to_attention": True,
+                "imbalance_warning": True,
+                "reason": "Stop without schedule"
             }
 
-        # Rule: 🟩 Зелений квадрат - планова зупинка
+        # Find closest scheduled end
+        best_inv = None
+        min_diff = 9999
+        for inv in intervals:
+            end_m = time_to_mins(inv.get("end"))
+            if end_m is not None and stop_mins is not None:
+                diff = abs(calc_time_diff(stop_mins, end_m))
+                if diff < min_diff:
+                    min_diff = diff
+                    best_inv = inv
+
+        if not best_inv or stop_mins is None:
+            # Cannot determine schedule end
+            if has_accident:
+                return {
+                    "marker": "🟥",
+                    "code": "red_square",
+                    "title": "Аварійна зупинка",
+                    "display_status": "🟥 Аварійна зупинка (подальша експлуатація неможлива)",
+                    "send_to_special": True,
+                    "send_to_attention": True,
+                    "imbalance_warning": True,
+                    "reason": "Accident stop, no time parsed"
+                }
+            return {
+                "marker": "🟨",
+                "code": "yellow_square",
+                "title": "Несвоєчасна зупинка",
+                "display_status": f"🟨 Несвоєчасна зупинка ({start_time_str})",
+                "send_to_special": True,
+                "send_to_attention": True,
+                "imbalance_warning": True,
+                "reason": "Stop with unparseable time"
+            }
+
+        planned_end_mins = time_to_mins(best_inv.get("end"))
+        delay_mins = calc_time_diff(stop_mins, planned_end_mins)
+
+        # 1. Overrun (Переробіток часу > 5 хвилин):
+        # Машину вчасно не зупинили, вона пропрацювала довше і видала зайву е/е в мережу
+        if delay_mins > 5:
+            return {
+                "marker": "🟨",
+                "code": "yellow_square",
+                "title": f"Несвоєчасна зупинка (переробіток +{delay_mins} хв)",
+                "display_status": f"🟨 Несвоєчасна зупинка (переробіток +{delay_mins} хв, план {best_inv.get('end')}, факт {start_time_str})",
+                "send_to_special": True,     # Трейдерам потрібно!
+                "send_to_attention": True,   # В "Увага" потрібно! (небаланс)
+                "imbalance_warning": True,
+                "reason": f"Stop overrun of {delay_mins} mins (> 5 mins)"
+            }
+
+        # 2. Early stop significantly before end (> 15 mins early):
+        if delay_mins < -15:
+            if has_accident:
+                return {
+                    "marker": "🟥",
+                    "code": "red_square",
+                    "title": "Аварійна зупинка (раніше графіка)",
+                    "display_status": f"🟥 Аварійна зупинка (на {-delay_mins} хв раніше графіка, план {best_inv.get('end')}, факт {start_time_str})",
+                    "send_to_special": True,
+                    "send_to_attention": True,
+                    "imbalance_warning": True,
+                    "reason": f"Accident early stop by {-delay_mins} mins"
+                }
+            else:
+                return {
+                    "marker": "🟨",
+                    "code": "yellow_square",
+                    "title": f"Передчасна зупинка (на {-delay_mins} хв раніше)",
+                    "display_status": f"🟨 Передчасна зупинка (на {-delay_mins} хв раніше графіка, план {best_inv.get('end')}, факт {start_time_str})",
+                    "send_to_special": True,
+                    "send_to_attention": True,
+                    "imbalance_warning": True,
+                    "reason": f"Early stop by {-delay_mins} mins"
+                }
+
+        # 3. Stopped on time (-15 <= delay_mins <= 5):
+        if has_accident:
+            # 🟪 Фіолетовий квадрат: допрацювала по графіку, але є зауваження (пуск можливий)
+            return {
+                "marker": "🟪",
+                "code": "purple_square",
+                "title": "Зупинка з несправностями (пуск можливий)",
+                "display_status": "🟪 Зупинка з несправностями (подальший пуск можливий)",
+                "send_to_special": True,     # Трейдерам відправляємо
+                "send_to_attention": False,  # В "Увага" не потрібно (графік виконано)
+                "imbalance_warning": False,
+                "reason": "Completed schedule on time but stopped with defects"
+            }
+
+        # 🟩 Зелений квадрат: планова зупинка вчасно
         return {
             "marker": "🟩",
             "code": "green_square",
             "title": "Планова зупинка",
-            "display_status": "🟩 Планова зупинка",
+            "display_status": "🟩 Планова зупинка (згідно графіка)",
             "send_to_special": True,
             "send_to_attention": False,
-            "reason": "Normal planned stop"
+            "imbalance_warning": False,
+            "reason": "Normal planned stop on time"
         }
 
     # -------------------------------------------------------------
@@ -284,6 +397,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
             "display_status": "⚠️ Попередження (несправність без зупинки)",
             "send_to_special": False,
             "send_to_attention": False,
+            "imbalance_warning": False,
             "reason": "Working with technical defects without stop"
         }
 
@@ -294,6 +408,7 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
         "display_status": gpu_status or "Стабільна",
         "send_to_special": False,
         "send_to_attention": False,
+        "imbalance_warning": False,
         "reason": "Normal ongoing operation"
     }
 

@@ -1117,7 +1117,7 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
     if linked_group_id: await deliver(linked_group_id)
     
     # 3. Отправка в группу трейдеров SPECIAL_GROUP_ID (только если send_to_special=True)
-    # Отправляются все статусы пуска и останова: 🟢, 🟡, 🟠, 🟣, 🔴, 🟩, 🟨, 🟥
+    # Отправляются все статусы пуска и останова: 🟢, 🟡, 🟠, 🟣, 🔴, 🟩, 🟨, 🟪, 🟥
     if is_short and config.special_group_id and status_info.get('send_to_special', False):
         # Remove "Заповнив:" line for special group
         special_summary = "\n".join([line for line in group_summary.split("\n") if "Заповнив:" not in line])
@@ -1129,10 +1129,17 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
         await deliver(config.obh_special_group_id)
 
     # 5. Отправка в мониторинговую группу "Увага! Увага!! Увага!!!" (ATTENTION_GROUP_ID / ALERT_GROUP)
-    # Сюда дублируются: 🟥 Червоний квадрат, 🟡 Жовте коло, 🟠 Помаранчове коло, 🟣 Фіолетове коло
+    # Сюда дублируются: 🟥 Червоний квадрат, 🟨 Жовтий квадрат, 🟡 Жовте коло, 🟠 Помаранчове коло, 🟣 Фіолетове коло
     attention_target = config.attention_group_id or config.alert_group
     if attention_target and status_info.get('send_to_attention', False):
-        await deliver(attention_target)
+        attention_summary = group_summary
+        if status_info.get('imbalance_warning', False):
+            warning_header = (
+                "⚠️ <b>Шановні трейдери, увага, внаслідок порушення робочого графіку "
+                "можуть бути сформовані небаланси!</b>\n\n"
+            )
+            attention_summary = warning_header + group_summary
+        await deliver(attention_target, custom_text=attention_summary)
 
     # 6. Check for low battery voltage (< config.min_battery_voltage)
     if not is_short and linked_group_id:
@@ -1155,26 +1162,48 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
         except Exception as e:
             logging.error(f"Error checking battery voltage alert: {e}")
 
-    # 7. Check for oil sampling limit (< config.oil_sampling_min_hours)
-    if not is_short and linked_group_id:
+    # 7. Check for oil sampling limit (<= config.oil_sampling_min_hours)
+    target_maintenance_group = linked_group_id or config.group_id
+    if not is_short and target_maintenance_group:
         try:
             oil_limit = data.get('oil_sampling_limit')
             if oil_limit is not None:
                 oil_limit_val = float(str(oil_limit).replace(',', '.'))
-                if oil_limit_val < config.oil_sampling_min_hours:
+                if oil_limit_val <= config.oil_sampling_min_hours:
                     async def send_oil_warning(bot_instance: Bot, group_id: int):
                         await asyncio.sleep(5)  # Delay between 5-10 seconds
                         try:
                             await bot_instance.send_message(
                                 chat_id=group_id,
-                                text="⚠️ <b>Увага, оператори! До моменту відбору оливи на аналіз завчасно забезпечте тару та бланк анкети</b>",
+                                text=f"🔵 <b>Увага, ТО!</b> До моменту відбору оливи на аналіз залишилося <b>{oil_limit_val} м/год</b>. Завчасно забезпечте тару та бланк анкети.",
                                 parse_mode="HTML"
                             )
                         except Exception as e:
                             logging.error(f"Failed to send oil sampling warning to {group_id}: {e}")
-                    asyncio.create_task(send_oil_warning(bot, linked_group_id))
+                    asyncio.create_task(send_oil_warning(bot, target_maintenance_group))
         except Exception as e:
             logging.error(f"Error checking oil sampling limit alert: {e}")
+
+    # 7.1. Check for generator bearing lubrication limit (<= 24.0 m/god)
+    if not is_short and target_maintenance_group:
+        try:
+            bearing_limit = data.get('bearing_lubrication_limit')
+            if bearing_limit is not None:
+                bearing_limit_val = float(str(bearing_limit).replace(',', '.'))
+                if bearing_limit_val <= 24.0:
+                    async def send_bearing_warning(bot_instance: Bot, group_id: int):
+                        await asyncio.sleep(6)  # Delay between 5-10 seconds
+                        try:
+                            await bot_instance.send_message(
+                                chat_id=group_id,
+                                text=f"🔵 <b>Увага, ТО!</b> До змащування підшипників генератора залишилося <b>{bearing_limit_val} м/год</b>. Підготуйте мастило та шприц.",
+                                parse_mode="HTML"
+                            )
+                        except Exception as e:
+                            logging.error(f"Failed to send bearing lubrication warning to {group_id}: {e}")
+                    asyncio.create_task(send_bearing_warning(bot, target_maintenance_group))
+        except Exception as e:
+            logging.error(f"Error checking bearing lubrication limit alert: {e}")
 
     # 8. Check for low engine coolant temperature (<= 39°C)
     if not is_short:

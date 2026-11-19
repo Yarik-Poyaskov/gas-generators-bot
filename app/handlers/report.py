@@ -1129,9 +1129,9 @@ async def process_report_confirmation(callback: CallbackQuery, state: FSMContext
         await deliver(config.obh_special_group_id)
 
     # 5. Отправка в мониторинговую группу "Увага! Увага!! Увага!!!" (ATTENTION_GROUP_ID / ALERT_GROUP)
-    # Сюда дублируются: 🟥 Червоний квадрат, 🟨 Жовтий квадрат, 🟡 Жовте коло, 🟠 Помаранчове коло, 🟣 Фіолетове коло
+    # Сюда дублируются ТОЛЬКО оперативные статусы (is_short): 🟥 Червоний квадрат, 🟨 Жовтий квадрат, 🟡 Жовте коло, 🟠 Помаранчове коло, 🟣 Фіолетове коло
     attention_target = config.attention_group_id or config.alert_group
-    if attention_target and status_info.get('send_to_attention', False):
+    if is_short and attention_target and status_info.get('send_to_attention', False):
         attention_summary = group_summary
         if status_info.get('imbalance_warning', False):
             warning_header = (

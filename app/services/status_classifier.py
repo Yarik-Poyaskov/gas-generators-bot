@@ -60,19 +60,20 @@ async def classify_report_status(data: Dict[str, Any], exclude_report_id: Option
     is_short = data.get("is_short", False)
 
     # 1. Determine if this is a START, STOP, or WORK/ROUTINE event
+    # Кола та квадрати застосовуються виключно для оперативних звітів ("Статус ГПУ", is_short=True)
     is_start = False
     is_stop = False
 
-    if "запуск" in time_label:
-        is_start = True
-    elif "зупинк" in time_label or "не працює" in gpu_status.lower() or "не працює" in work_mode.lower() or "не готова" in work_mode.lower():
-        is_stop = True
-    else:
-        # If no explicit label:
-        if "не готова" in work_mode.lower() or "не працює" in work_mode.lower():
-            is_stop = True
-        elif is_short and work_mode in ["Острів", "Мережа"]:
+    if is_short:
+        if "запуск" in time_label:
             is_start = True
+        elif "зупинк" in time_label or "не працює" in gpu_status.lower() or "не працює" in work_mode.lower() or "не готова" in work_mode.lower():
+            is_stop = True
+        else:
+            if "не готова" in work_mode.lower() or "не працює" in work_mode.lower():
+                is_stop = True
+            elif work_mode in ["Острів", "Мережа"]:
+                is_start = True
 
     # Get previous report and today's trader schedule
     previous_report = None
